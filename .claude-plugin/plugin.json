@@ -1,0 +1,10 @@
+{
+  "name": "claude-code-plugins",
+  "version": "0.1.0",
+  "description": "Real-time statusline plugin for Claude Code - track GitHub PRs, control music, get smart alerts",
+  "author": {
+    "name": "Pavel Fadeev"
+  },
+  "license": "MIT",
+  "keywords": ["claude-code", "claude", "plugins", "marketplace", "extensions", "cli", "developer-tools"]
+}
