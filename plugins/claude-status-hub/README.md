@@ -1,9 +1,13 @@
 # Claude Status Hub
 
-> Universal statusline integration - track GitHub PRs, control music playback, monitor alerts in real-time
+> Monitor what matters - PRs, music, custom alerts - right in your Claude Code statusline
 
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
+
+## Why
+
+Firing off PRs and moving on to new code - that's the flow. But my personal context overflows easily, and every alt-tab to check on things would distract me with something else. I needed a way to draw the line - important updates in, noise out. So this little tool came to be. Hope you find it useful!
 
 ## What It Does
 
@@ -11,7 +15,7 @@ Status Hub adds a dynamic statusline to Claude Code showing:
 
 - **GitHub PRs** - Track review status, comments, CI checks
 - **Music Playback** - Now playing from YouTube Music or Spotify
-- **Smart Alerts** - Get notified when PR state changes
+- **Custom Alerts** - Configure monitoring for anything you care about
 
 ```
 pavel@mac:~/project › main* › > Sledgehammer - Peter Gabriel › 2 PRs >

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-code-plugins",
+  "description": "Monitor what matters - PRs, music, custom alerts - right in your Claude Code statusline",
+  "owner": {
+    "name": "Pavel Fadeev",
+    "email": "pavel.fadeev@gmail.com"
+  },
+  "keywords": ["claude-code", "plugins", "marketplace", "extensions", "cli", "developer-tools"],
+  "plugins": [
+    {
+      "name": "claude-status-hub",
+      "description": "Monitor what matters - PRs, music, custom alerts - right in your Claude Code statusline",
+      "version": "0.1.0",
+      "author": {
+        "name": "Pavel Fadeev",
+        "email": "pavel.fadeev@gmail.com"
+      },
+      "source": "./plugins/claude-status-hub",
+      "category": "productivity",
+      "keywords": ["statusline", "github-pr", "music", "alerts", "notifications"]
+    }
+  ]
+}
