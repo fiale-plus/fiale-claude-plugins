@@ -8,6 +8,16 @@ BRIDGE="/tmp/status-hub.json"
 # No config = nothing to track
 [ -f "$CONFIG" ] || exit 0
 
+# Prevent pileup - skip if refresh already in progress (lockfile < 2min old)
+LOCKFILE="/tmp/status-hub.lock"
+if [ -f "$LOCKFILE" ]; then
+  # Cross-platform: try macOS stat, fall back to Linux stat
+  LOCK_MTIME=$(stat -f %m "$LOCKFILE" 2>/dev/null || stat -c %Y "$LOCKFILE" 2>/dev/null || echo 0)
+  LOCK_AGE=$(($(date +%s) - LOCK_MTIME))
+  [ "$LOCK_AGE" -lt 120 ] && exit 0
+fi
+touch "$LOCKFILE"
+
 # Check bridge timestamp (skip if fresh < 60s)
 if [ -f "$BRIDGE" ]; then
   BRIDGE_TS=$(jq -r '.timestamp // 0' "$BRIDGE" 2>/dev/null)
