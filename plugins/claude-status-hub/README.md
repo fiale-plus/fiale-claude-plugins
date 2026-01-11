@@ -26,7 +26,7 @@ pavel@mac:~/project › main* › > Sledgehammer - Peter Gabriel › 2 PRs >
 
 ```bash
 # Add marketplace and install
-/plugin marketplace add fiale-plus/claude-plugins
+/plugin marketplace add fiale-plus/fiale-claude-plugins
 /plugin install claude-status-hub
 
 # Setup statusline
