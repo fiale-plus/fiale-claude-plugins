@@ -25,8 +25,9 @@ pavel@mac:~/project › main* › > Sledgehammer - Peter Gabriel › 2 PRs >
 ## Quick Start
 
 ```bash
-# Install
-/install claude-status-hub@fiale-plus/claude-code-plugins
+# Add marketplace and install
+/plugin marketplace add fiale-plus/claude-plugins
+/plugin install claude-status-hub
 
 # Setup statusline
 /hub-setup

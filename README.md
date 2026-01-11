@@ -16,7 +16,7 @@ Plugins and extensions for [Claude Code](https://docs.anthropic.com/en/docs/clau
 ## Quick Install
 
 ```bash
-/marketplace add fiale-plus/claude-code-plugins
+/plugin marketplace add fiale-plus/claude-plugins
 /plugin install claude-status-hub
 ```
 
