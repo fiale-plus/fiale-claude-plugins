@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "claude-plugins",
+  "name": "fiale-claude-plugins",
   "description": "Monitor what matters - PRs, music, custom alerts - right in your Claude Code statusline",
   "owner": {
     "name": "Pavel Fadeev",
