@@ -1,7 +1,7 @@
 {
   "name": "claude-status-hub",
   "version": "0.1.0",
-  "description": "Add a live statusline to Claude Code - GitHub PR tracking, music control, and smart alerts without leaving your terminal",
+  "description": "Add a live statusline to Claude Code - GitHub PR tracking, music control, and custom alerts without leaving your terminal",
   "author": {
     "name": "Pavel Fadeev"
   },

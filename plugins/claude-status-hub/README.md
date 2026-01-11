@@ -11,7 +11,7 @@ Status Hub adds a dynamic statusline to Claude Code showing:
 
 - **GitHub PRs** - Track review status, comments, CI checks
 - **Music Playback** - Now playing from YouTube Music or Spotify
-- **Smart Alerts** - Get notified when PR state changes
+- **Custom Alerts** - Configure monitoring for anything you care about
 
 ```
 pavel@mac:~/project › main* › > Sledgehammer - Peter Gabriel › 2 PRs >

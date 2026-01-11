@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-code-plugins",
+  "description": "Extend Claude Code with custom commands, agents, skills, and hooks",
+  "owner": {
+    "name": "Pavel Fadeev"
+  },
+  "plugins": [
+    {
+      "name": "claude-status-hub",
+      "description": "Add a live statusline to Claude Code - GitHub PR tracking, music control, and custom alerts without leaving your terminal",
+      "version": "0.1.0",
+      "author": {
+        "name": "Pavel Fadeev"
+      },
+      "source": "./plugins/claude-status-hub",
+      "category": "productivity"
+    }
+  ]
+}

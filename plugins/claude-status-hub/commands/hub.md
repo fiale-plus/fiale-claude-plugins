@@ -1,6 +1,6 @@
 ---
 name: hub
-description: Universal status hub - track PRs, music, email with smart alerts and actions
+description: Universal status hub - track PRs, music, email with custom alerts and actions
 argument-hint: <service|pr-url|list|ack|manage|play|off>
 ---
 
