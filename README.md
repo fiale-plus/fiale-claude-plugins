@@ -5,13 +5,13 @@ Plugins and extensions for [Claude Code](https://docs.anthropic.com/en/docs/clau
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-blueviolet)](https://docs.anthropic.com/en/docs/claude-code)
 
-> Extend Claude Code with custom commands, agents, skills, and hooks
+> Monitor what matters - PRs, music, custom alerts - right in your Claude Code statusline
 
 ## Available Plugins
 
 | Plugin | Description |
 |--------|-------------|
-| [claude-status-hub](plugins/claude-status-hub) | Statusline integration - track GitHub PRs, control music, monitor custom alerts |
+| [claude-status-hub](plugins/claude-status-hub) | Monitor what matters - PRs, music, custom alerts |
 
 ## Quick Install
 

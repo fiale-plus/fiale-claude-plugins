@@ -1,6 +1,6 @@
 # Claude Status Hub
 
-> Universal statusline integration - track GitHub PRs, control music playback, monitor alerts in real-time
+> Monitor what matters - PRs, music, custom alerts - right in your Claude Code statusline
 
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
