@@ -76,9 +76,15 @@ get_base_prompt() {
 # Build base prompt (dynamic or default)
 BASE=$(get_base_prompt)
 
-# Add git branch if in repo
+# Check if base config uses "command" type (skip git since original command likely includes it)
+BASE_TYPE="default"
+if [[ -f "$BASE_CONFIG" ]]; then
+  BASE_TYPE=$(jq -r '.type // "default"' "$BASE_CONFIG" 2>/dev/null)
+fi
+
+# Add git branch if in repo AND not using a preserved command (which likely already has git)
 GIT_PART=""
-if git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
+if [[ "$BASE_TYPE" != "command" ]] && git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
   branch=$(git -C "$cwd" --no-optional-locks branch --show-current 2>/dev/null || echo 'HEAD')
   GIT_PART=" ${DIM}›${RESET} ${GREEN}${branch}${RESET}"
   git -C "$cwd" --no-optional-locks diff-index --quiet HEAD -- 2>/dev/null || GIT_PART="${GIT_PART}${YELLOW}*${RESET}"
