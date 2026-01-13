@@ -16,8 +16,10 @@ Parse `$ARGUMENTS` and route to appropriate sub-skill:
 | `play <query>` | Use `hub-play` skill with query |
 | `off`, `clear`, `disable` | Use `hub-off` skill |
 | `setup` | Use `hub-setup` skill |
+| `custom <service>` | Use `hub-custom` skill |
 | GitHub PR URL(s) | Track PR(s) - see below |
-| Service name | Set background - see below |
+| Known service name | Set background - see below |
+| Unknown service | Check for custom skill or redirect to `/hub-custom` |
 
 ## Initialization (always first)
 
@@ -144,3 +146,21 @@ If argument is a service name (`youtube-music`, `spotify`, `gmail`):
   });
 })()
 ```
+
+## Unknown Service Handling
+
+If the argument doesn't match any known pattern above:
+
+1. Check if a custom skill exists:
+   ```bash
+   ls ${CLAUDE_PLUGIN_ROOT}/skills/hub-refresh-<service>*.md 2>/dev/null
+   ```
+
+2. If skill found (`hub-refresh-<service>.md` or `hub-refresh-<service>.user.md`):
+   - Use the skill to set up tracking
+   - Add to config and start monitoring
+
+3. If no skill found:
+   - **Automatically invoke `/hub-custom` skill** with the user's request
+   - Do NOT tell the user to run `/hub-custom` themselves - just do it for them
+   - This provides better UX by seamlessly handling unknown services

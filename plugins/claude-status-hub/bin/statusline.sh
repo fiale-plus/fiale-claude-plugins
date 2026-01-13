@@ -10,13 +10,19 @@ RED='\033[31m'
 GREEN='\033[32m'
 MAGENTA='\033[95m'
 RESET='\033[0m'
+DIM='\033[2m'
+
+# Constants
+ERROR_FILE="/tmp/status-hub-error.txt"
+BRIDGE_FILE="/tmp/status-hub.json"
+PLAY_ICON="▶"
+PAUSE_ICON="⏸"
 
 # Read Claude Code's context JSON (stdin)
 input=$(cat)
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // "~"')
 
 # Build base prompt (user@host:dir)
-DIM='\033[2m'
 BASE="${PURPLE}$(whoami)${DIM}@${YELLOW}$(hostname -s)${DIM}:${CYAN}${cwd}${RESET}"
 
 # Add git branch if in repo
@@ -27,10 +33,18 @@ if git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
   git -C "$cwd" --no-optional-locks diff-index --quiet HEAD -- 2>/dev/null || GIT_PART="${GIT_PART}${YELLOW}*${RESET}"
 fi
 
+# Check for error file first (highest priority)
+if [ -f "$ERROR_FILE" ]; then
+  ERROR_MSG=$(cat "$ERROR_FILE" 2>/dev/null)
+  if [ -n "$ERROR_MSG" ]; then
+    printf '%b' "${BASE}${GIT_PART} ${DIM}›${RESET} ${RED}⚠ ${ERROR_MSG}${RESET} ${CYAN}>${RESET}"
+    exit 0
+  fi
+fi
+
 # Check for hub state
 FOREGROUND_PART=""
 BACKGROUND_PART=""
-BRIDGE_FILE="/tmp/status-hub.json"
 
 if [ -f "$BRIDGE_FILE" ]; then
   # Read timestamp from JSON (milliseconds)
@@ -38,9 +52,23 @@ if [ -f "$BRIDGE_FILE" ]; then
   NOW_MS=$(($(date +%s) * 1000))
   AGE_MS=$((NOW_MS - BRIDGE_TS))
 
-  # Only use data if fresh (< 300s = 300000ms for display)
-  # Note: Hook refreshes at 60s, but we display up to 5min to avoid gaps between prompts
+  # Check for stale data (> 5 minutes old)
+  if [ "$AGE_MS" -ge 300000 ]; then
+    printf '%b' "${BASE}${GIT_PART} ${DIM}›${RESET} ${YELLOW}⚠ Status stale${RESET} ${CYAN}>${RESET}"
+    exit 0
+  fi
+
+  # Data is fresh, process it
   if [ "$AGE_MS" -lt 300000 ]; then
+    # Check for refresh errors first
+    ERROR_MSG=$(jq -r '.error.message // empty' "$BRIDGE_FILE" 2>/dev/null)
+    HAS_ERROR="false"
+    if [ -n "$ERROR_MSG" ]; then
+      HAS_ERROR="true"
+      FOREGROUND_PART=" ${DIM}›${RESET} ${RED}⚠ ${ERROR_MSG}${RESET}"
+      # Still show background if available, but skip foreground processing
+    fi
+
     # Read foreground array - find first with alert or count them
     FG_COUNT=$(jq -r '.foreground | length' "$BRIDGE_FILE" 2>/dev/null || echo 0)
     HAS_ALERT=$(jq -r '[.foreground[] | select(.hasAlert == true)] | length > 0' "$BRIDGE_FILE" 2>/dev/null || echo false)
@@ -62,7 +90,14 @@ if [ -f "$BRIDGE_FILE" ]; then
     BG_TITLE=$(jq -r '.background.title // empty' "$BRIDGE_FILE" 2>/dev/null)
     BG_DETAIL=$(jq -r '.background.detail // empty' "$BRIDGE_FILE" 2>/dev/null)
 
-    if [ "$HAS_ALERT" = "true" ] && [ "$FG_COUNT" -gt 0 ]; then
+    if [ "$HAS_ERROR" = "true" ]; then
+      # ERROR STATE: error already in FOREGROUND_PART, just add background
+      if [ -n "$BG_SITE" ] && [ -n "$BG_TITLE" ]; then
+        TITLE_SHORT=$(echo "$BG_TITLE" | cut -c1-25)
+        DETAIL_SHORT=$(echo "$BG_DETAIL" | cut -c1-15)
+        BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON} ${TITLE_SHORT} - ${DETAIL_SHORT}${RESET}"
+      fi
+    elif [ "$HAS_ALERT" = "true" ] && [ "$FG_COUNT" -gt 0 ]; then
       # ALERT STATE: foreground expanded, background compact
       FOREGROUND_PART=" ${DIM}›${RESET} ${RED}${FG_ICON} ${FG_TITLE} ${FG_DETAIL}${RESET}"
       if [ -n "$BG_SITE" ] && [ -n "$BG_ICON" ]; then
@@ -76,12 +111,32 @@ if [ -f "$BRIDGE_FILE" ]; then
         BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON} ${TITLE_SHORT} - ${DETAIL_SHORT}${RESET}"
       fi
       if [ "$FG_COUNT" -gt 0 ]; then
-        PR_LABEL="PRs"; [ "$FG_COUNT" = "1" ] && PR_LABEL="PR"
-        FOREGROUND_PART=" ${DIM}›${RESET} ${DIM}${FG_COUNT} ${PR_LABEL}${RESET}"
+        # Count PRs specifically (items with site=github-pr)
+        PR_COUNT=$(jq -r '[.foreground[] | select(.site == "github-pr")] | length' "$BRIDGE_FILE" 2>/dev/null || echo 0)
+        OTHER_COUNT=$((FG_COUNT - PR_COUNT))
+
+        FG_PARTS=""
+        if [ "$PR_COUNT" -gt 0 ]; then
+          PR_LABEL="PRs"; [ "$PR_COUNT" = "1" ] && PR_LABEL="PR"
+          FG_PARTS="${PR_COUNT} ${PR_LABEL}"
+        fi
+        if [ "$OTHER_COUNT" -gt 0 ]; then
+          # Show first non-PR item's icon, title and detail
+          OTHER_ICON=$(jq -r '[.foreground[] | select(.site != "github-pr")][0].icon // "•"' "$BRIDGE_FILE" 2>/dev/null)
+          OTHER_TITLE=$(jq -r '[.foreground[] | select(.site != "github-pr")][0].title // ""' "$BRIDGE_FILE" 2>/dev/null | cut -c1-10)
+          OTHER_DETAIL=$(jq -r '[.foreground[] | select(.site != "github-pr")][0].detail // ""' "$BRIDGE_FILE" 2>/dev/null | cut -c1-20)
+          [ -n "$FG_PARTS" ] && FG_PARTS="${FG_PARTS} "
+          if [ -n "$OTHER_DETAIL" ]; then
+            FG_PARTS="${FG_PARTS}${OTHER_ICON} ${OTHER_TITLE} ${OTHER_DETAIL}"
+          else
+            FG_PARTS="${FG_PARTS}${OTHER_ICON} ${OTHER_TITLE}"
+          fi
+        fi
+        FOREGROUND_PART=" ${DIM}›${RESET} ${DIM}${FG_PARTS}${RESET}"
       fi
     fi
   fi
 fi
 
 # Combine all parts (order: base prompt > background > foreground - always same order)
-printf "${BASE}${GIT_PART}${BACKGROUND_PART}${FOREGROUND_PART} ${CYAN}>${RESET}"
+printf '%b' "${BASE}${GIT_PART}${BACKGROUND_PART}${FOREGROUND_PART} ${CYAN}>${RESET}"

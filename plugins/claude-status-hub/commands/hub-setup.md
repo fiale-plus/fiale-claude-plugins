@@ -21,26 +21,44 @@ Configure Claude Code to use Status Hub's statusline.
    }
    ```
 
-3. Add permission for background refresh (allows hook to update status without prompts):
+3. Add permissions for background refresh (allows status updates without prompts):
    ```json
    {
      "permissions": {
        "allow": [
-         "Bash(${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh:*)"
+         "Read(${HOME}/.claude/status-config.json)",
+         "Write(${HOME}/.claude/status-config.json)",
+         "Read(/tmp/status-hub.json)",
+         "Write(/tmp/status-hub.json)",
+         "Read(${CLAUDE_PLUGIN_ROOT}/skills/*)",
+         "Read(${CLAUDE_PLUGIN_ROOT}/bin/*)",
+         "Bash(gh pr view:*)",
+         "Bash(cat ${HOME}/.claude/status-config.json)",
+         "Bash(${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh *)",
+         "mcp__plugin_sentry_sentry__search_issues"
        ]
      }
    }
    ```
 
-   Note: Replace `${CLAUDE_PLUGIN_ROOT}` with the actual plugin path when writing. Merge with existing permissions if present.
+   **IMPORTANT**: When writing permissions, expand all variables to actual paths:
+   - `${HOME}` → user's home directory (e.g., `/Users/username` or `/home/username`)
+   - `${CLAUDE_PLUGIN_ROOT}` → actual plugin path
+
+   Claude Code permissions require exact path matching - `~` and variables are NOT expanded automatically.
+
+   Merge with existing permissions if present.
+
+   Explain to user: "These permissions allow the background status refresh to run without interrupting you with prompts."
 
 4. Preserve all other settings in the file
 
 5. Write updated settings
 
-6. Ensure config files exist:
+6. Ensure config files exist and clear any stale errors:
    - `~/.claude/status-config.json`: `{"background": null, "foreground": []}`
    - `/tmp/status-hub.json`: `{"timestamp": null, "background": null, "foreground": []}`
+   - Clear error file: `rm -f /tmp/status-hub-error.txt`
 
 7. Say:
    ```

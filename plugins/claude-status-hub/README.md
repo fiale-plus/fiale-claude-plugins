@@ -1,26 +1,48 @@
 # Claude Status Hub
 
-> Monitor what matters - PRs, music, custom alerts - right in your Claude Code statusline
+> Monitor whatever - right in your statusline
 
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
+**Morning chill**
+```
+› main* › ▶ Lo-Fi Beats - ChillHop › 📧 3 unread
+```
+
+**PR needs attention**
+```
+› main* › ! PR #42 checks failed › ▶
+```
+
+**VIP email lands**
+```
+› main* › 📧 from: investor@acme.vc "Term sheet" › ▶
+```
+
+**Market + production**
+```
+› main* › 📈 ACME +3.2% › 🔥 2 Sentry › ▶
+```
+
+`PRs • Music • Email • Stocks • Sentry • Any MCP service • Any browser tab*`
+
+```
+Status Hub
+├─ Background
+│  └─ ▶ Blinding Lights - The Weeknd
+└─ Foreground
+   ├─ ✓ PR #42 anthropics/claude-code (approved)
+   ├─ 📈 ACME $142.50 (+3.2%)
+   ├─ 📧 Gmail (3 unread)
+   └─ 🔥 Sentry (2 issues)
+```
+
+<sub>*Use responsibly - respect site terms and rate limits</sub>
+
 ## Why
 
 Firing off PRs and moving on to new code - that's the flow. But my personal context overflows easily, and every alt-tab to check on things would distract me with something else. I needed a way to draw the line - important updates in, noise out. So this little tool came to be. Hope you find it useful!
-
-## What It Does
-
-Status Hub adds a dynamic statusline to Claude Code showing:
-
-- **GitHub PRs** - Track review status, comments, CI checks
-- **Music Playback** - Now playing from YouTube Music or Spotify
-- **Custom Alerts** - Configure monitoring for anything you care about
-
-```
-pavel@mac:~/project › main* › > Sledgehammer - Peter Gabriel › 2 PRs >
-                      ↑ git    ↑ music playing                ↑ tracked PRs
-```
 
 ## Quick Start
 
