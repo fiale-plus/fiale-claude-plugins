@@ -162,6 +162,45 @@ A `UserPromptSubmit` hook auto-refreshes stale data in the background.
 gh auth status  # Verify GitHub CLI auth
 ```
 
+## FAQ
+
+### Why is the statusline not updating instantly?
+
+Status Hub uses Claude Code's hook system - it refreshes on:
+- **UserPromptSubmit**: When you send a message
+- **Stop**: When Claude finishes responding
+
+It does NOT poll continuously. Send any message to trigger a refresh.
+
+### Why does it show "Status stale" or old information?
+
+This happens when:
+1. No interaction for >5 minutes (data ages out)
+2. Background refresh failed silently
+
+**Fix**: Send any message to trigger refresh. If it persists, run `/hub-ack` to clear errors.
+
+### What does the error indication mean?
+
+Red text or error icon means a background refresh failed. Common causes:
+- Network issues (GitHub/Sentry API unreachable)
+- Browser tab closed (music service disconnected)
+- MCP server not responding
+
+**Fix**: Run `/hub-ack` to acknowledge and clear, then send a message to retry.
+
+### I installed a new MCP or skill but statusline doesn't pick it up
+
+Claude Code caches plugin configurations at startup.
+
+**Fix**: Restart Claude Code (`Ctrl+C` then `claude`) to reload plugins and MCP connections.
+
+### Will setup overwrite my existing statusline?
+
+No! By default, `/hub-setup` preserves your existing statusline as the "base prompt" and appends Status Hub data to it. If you had a custom statusline command, it will still run first.
+
+Use `/hub-setup --replace` if you want to fully replace your statusline with Status Hub's default.
+
 ## License
 
 MIT
