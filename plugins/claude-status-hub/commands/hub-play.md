@@ -83,5 +83,6 @@ After any action:
 
 4. **Write bridge file** using helper script:
    ```bash
-   ${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh "youtube-music" ">" "<song title>" "<artist>"
+   # Use ▶ for playing, ⏸ for paused
+   ${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh "youtube-music" "▶" "<song title>" "<artist>"
    ```
