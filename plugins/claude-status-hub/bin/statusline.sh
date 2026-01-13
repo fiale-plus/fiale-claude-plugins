@@ -15,6 +15,7 @@ DIM='\033[2m'
 # Constants
 ERROR_FILE="/tmp/status-hub-error.txt"
 BRIDGE_FILE="/tmp/status-hub.json"
+BASE_CONFIG="${HOME}/.claude/status-base-config.json"
 PLAY_ICON="▶"
 PAUSE_ICON="⏸"
 
@@ -22,8 +23,58 @@ PAUSE_ICON="⏸"
 input=$(cat)
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // "~"')
 
-# Build base prompt (user@host:dir)
-BASE="${PURPLE}$(whoami)${DIM}@${YELLOW}$(hostname -s)${DIM}:${CYAN}${cwd}${RESET}"
+# Default base prompt function
+get_default_prompt() {
+    echo "${PURPLE}$(whoami)${DIM}@${YELLOW}$(hostname -s)${DIM}:${CYAN}${cwd}${RESET}"
+}
+
+# Dynamic base prompt loader
+get_base_prompt() {
+    if [[ ! -f "$BASE_CONFIG" ]]; then
+        get_default_prompt
+        return
+    fi
+
+    local type=$(jq -r '.type // "default"' "$BASE_CONFIG" 2>/dev/null)
+    local value=$(jq -r '.value // ""' "$BASE_CONFIG" 2>/dev/null)
+
+    case "$type" in
+        command)
+            # Run user's original statusline command, pass through context
+            local result=$(echo "$input" | eval "$value" 2>/dev/null)
+            if [ -n "$result" ]; then
+                echo "$result"
+            else
+                get_default_prompt
+            fi
+            ;;
+        text)
+            # Use static text directly
+            echo "$value"
+            ;;
+        shell)
+            # Evaluate shell prompt variable
+            local shell_type=$(jq -r '.shell // "bash"' "$BASE_CONFIG" 2>/dev/null)
+            local prompt_result=""
+            if [[ "$shell_type" == "zsh" ]]; then
+                prompt_result=$(zsh -c 'print -P "$PROMPT"' 2>/dev/null)
+            else
+                prompt_result=$(bash -c 'echo -e "$PS1"' 2>/dev/null)
+            fi
+            if [ -n "$prompt_result" ]; then
+                echo "$prompt_result"
+            else
+                get_default_prompt
+            fi
+            ;;
+        *)
+            get_default_prompt
+            ;;
+    esac
+}
+
+# Build base prompt (dynamic or default)
+BASE=$(get_base_prompt)
 
 # Add git branch if in repo
 GIT_PART=""
