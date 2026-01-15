@@ -164,18 +164,19 @@ if [ "$CTX_DISPLAY" != "off" ] && [ "$ctx_available" = "true" ]; then
   esac
 fi
 
-# Build quota display part (from PostToolUse tracking)
+# Build quota display part (using real context window tokens)
 QUOTA_PART=""
-if [ -f "$HUB_CONFIG" ] && [ -f "$QUOTA_FILE" ]; then
+if [ -f "$HUB_CONFIG" ]; then
   QUOTA_DISPLAY=$(jq -r '.quota.displayFormat // "off"' "$HUB_CONFIG" 2>/dev/null)
   QUOTA_THRESHOLD=$(jq -r '.quota.alertThreshold // 80' "$HUB_CONFIG" 2>/dev/null)
+  # Daily limit in thousands from config, convert to tokens
+  DAILY_LIMIT_K=$(jq -r '.quota.dailyLimit // 45' "$HUB_CONFIG" 2>/dev/null)
+  DAILY_LIMIT=$((DAILY_LIMIT_K * 1000))
 
-  if [ "$QUOTA_DISPLAY" != "off" ]; then
-    TOKENS_USED=$(jq -r '.tokensUsed // 0' "$QUOTA_FILE" 2>/dev/null)
-    ESTIMATED_LIMIT=$(jq -r '.estimatedLimit // 45000' "$QUOTA_FILE" 2>/dev/null)
-
-    if [ "$ESTIMATED_LIMIT" -gt 0 ] 2>/dev/null; then
-      QUOTA_PERCENT=$((TOKENS_USED * 100 / ESTIMATED_LIMIT))
+  if [ "$QUOTA_DISPLAY" != "off" ] && [ "$ctx_used" -gt 0 ] 2>/dev/null; then
+    # Use real context tokens against daily limit
+    if [ "$DAILY_LIMIT" -gt 0 ] 2>/dev/null; then
+      QUOTA_PERCENT=$((ctx_used * 100 / DAILY_LIMIT))
 
       # Determine color
       if [ "$QUOTA_PERCENT" -ge 90 ]; then

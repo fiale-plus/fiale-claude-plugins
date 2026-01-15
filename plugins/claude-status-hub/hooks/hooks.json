@@ -10,11 +10,6 @@
           },
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/reset-quota.sh",
-            "timeout": 2
-          },
-          {
-            "type": "command",
             "command": "nohup bash ${CLAUDE_PLUGIN_ROOT}/bin/refresh-daemon.sh > /dev/null 2>&1 &",
             "timeout": 2
           }
@@ -39,17 +34,6 @@
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/refresh.sh",
             "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/track-usage.sh",
-            "timeout": 2
           }
         ]
       }
