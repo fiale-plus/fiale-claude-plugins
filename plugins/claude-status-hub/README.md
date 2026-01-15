@@ -128,6 +128,22 @@ The statusline adapts based on what needs attention:
 › ! PR #123 needs review › >
 ```
 
+### Context & Quota Awareness
+
+Optional: See your session context and daily quota usage at a glance.
+
+```
+❯ › [████████░░] 82% › ⚡85% › ⏸ Bad Dream - Cannons › 📊 1/3 ↑ -0.5% avg >
+     └─ context ──┘    └ quota    └─ music ─────────┘    └─ stocks ──────┘
+```
+
+- **Context bar** `[████████░░] 82%` - How full your session is (compaction coming soon)
+- **Quota** `⚡85%` - Estimated daily budget used (based on real tokens)
+
+Configure with `/hub-context` and `/hub-quota`. Colors shift green → yellow → red as usage climbs.
+
+*Note: Quota is an estimate based on context window tokens. Check [console.anthropic.com](https://console.anthropic.com) for actual usage.*
+
 ## Requirements
 
 - **Claude Code** - The AI coding assistant CLI
