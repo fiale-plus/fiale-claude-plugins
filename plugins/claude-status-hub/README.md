@@ -37,7 +37,7 @@ Status Hub
 ├─ FOREGROUND
 │  ├─ #1  ✓ PR #142 anthropics/claude-code (approved)
 │  ├─ #2  ! PR #138 anthropics/claude-code (changes requested)
-│  ├─ #3  📊 finance: GOOGL -0.91% | AAPL +1.2%
+│  ├─ #3  📊 finance: GOOGL -0.91% | YOU +1.13% | ATAT -1.70%
 │  └─ #4  🔥 Sentry (2 issues)
 │
 └─ BACKGROUND
