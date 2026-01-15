@@ -189,6 +189,15 @@ Red text or error icon means a background refresh failed. Common causes:
 
 **Fix**: Run `/hub-ack` to acknowledge and clear, then send a message to retry.
 
+### What does the skull 💀 mean?
+
+The skull icon appears when the background refresh daemon hasn't updated in over 3 minutes. This usually means:
+- The daemon process died (terminal was closed and reopened)
+- System went to sleep and daemon didn't recover
+- Daemon crashed due to an error
+
+**Fix**: Restart Claude Code to respawn the daemon, or run any command to trigger a manual refresh.
+
 ### I installed a new MCP or skill but statusline doesn't pick it up
 
 Claude Code caches plugin configurations at startup.

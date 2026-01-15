@@ -219,12 +219,18 @@ fi
 # Check for hub state
 FOREGROUND_PART=""
 BACKGROUND_PART=""
+DAEMON_STALE_PART=""
 
 if [ -f "$BRIDGE_FILE" ]; then
   # Read timestamp from JSON (milliseconds)
   BRIDGE_TS=$(jq -r '.timestamp // 0' "$BRIDGE_FILE" 2>/dev/null)
   NOW_MS=$(($(date +%s) * 1000))
   AGE_MS=$((NOW_MS - BRIDGE_TS))
+
+  # Check if daemon is stale (no update in >3 minutes = 180000ms)
+  if [ "$AGE_MS" -gt 180000 ]; then
+    DAEMON_STALE_PART=" ${DIM}›${RESET} ${RED}💀${RESET}"
+  fi
 
   # Process hub data (no stale warning - just show last known status)
   if true; then
@@ -306,5 +312,5 @@ if [ -f "$BRIDGE_FILE" ]; then
   fi
 fi
 
-# Combine all parts (order: base > git > context > quota > background > foreground)
-printf '%b' "${BASE}${GIT_PART}${CONTEXT_PART}${QUOTA_PART}${BACKGROUND_PART}${FOREGROUND_PART} ${CYAN}>${RESET}"
+# Combine all parts (order: base > git > context > quota > daemon-stale > background > foreground)
+printf '%b' "${BASE}${GIT_PART}${CONTEXT_PART}${QUOTA_PART}${DAEMON_STALE_PART}${BACKGROUND_PART}${FOREGROUND_PART} ${CYAN}>${RESET}"
