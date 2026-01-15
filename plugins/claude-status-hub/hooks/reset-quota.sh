@@ -29,14 +29,17 @@ fi
 # Generate new session ID
 SESSION_ID="session-$(date +%s)"
 
+# Get milliseconds (macOS compatible)
+NOW_MS=$(($(date +%s) * 1000))
+
 # Reset quota file
 cat > "$QUOTA_FILE" << EOF
 {
   "sessionId": "$SESSION_ID",
-  "startTime": $(date +%s%3N),
+  "startTime": $NOW_MS,
   "tokensUsed": 0,
   "estimatedLimit": $ESTIMATED_LIMIT,
   "toolCalls": 0,
-  "lastUpdate": $(date +%s%3N)
+  "lastUpdate": $NOW_MS
 }
 EOF

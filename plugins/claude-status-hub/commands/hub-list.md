@@ -15,17 +15,38 @@ Display all tracked items in a tree format with numbered references.
 
 ```
 Status Hub
-|
-+- FOREGROUND
-|  +- #1  PR #17163  [icon] [state]  [detail]  [NEW]
-|  +- #2  PR #17042  [icon] [state]  [detail]
-|  \- #3  PR #16998  [icon] [state]  [detail]
-|
-\- BACKGROUND
-   \- #4  [icon] [service]: [title] - [detail]
+│
+├─ STATUSLINE
+│  ├─ Context: bar [████░░░░░░ 42%] threshold 80%
+│  └─ Quota: bar [██░░░░░░░░ 18%] threshold 80% (Max 5hrs)
+│
+├─ FOREGROUND
+│  ├─ #1  PR #17163  [icon] [state]  [detail]  [NEW]
+│  ├─ #2  PR #17042  [icon] [state]  [detail]
+│  └─ #3  PR #16998  [icon] [state]  [detail]
+│
+└─ BACKGROUND
+   └─ #4  [icon] [service]: [title] - [detail]
 
-Tip: /hub ack #1  |  /hub manage
+Tip: /hub ack #1  |  /hub-manage
 ```
+
+## Statusline Settings
+
+Read from config and display current settings:
+- `contextDisplay`: "bar" | "percent" | "threshold" | (not set = off)
+- `contextAlertThreshold`: number (default 80)
+- `quota.displayFormat`: "bar" | "number" | "compact" | "off" | (not set = off)
+- `quota.alertThreshold`: number (default 80)
+- `quota.plan`: "pro" | "max5" | "max20" | "custom"
+
+Show current usage from `/tmp/status-hub-quota.json` if available.
+
+Display format:
+- If context enabled: `Context: <format> [<visual>] threshold <N>%`
+- If context off: `Context: off`
+- If quota enabled: `Quota: <format> [<visual>] threshold <N>% (<plan>)`
+- If quota off: `Quota: off (tracking silently)`
 
 ## Foreground Items
 

@@ -21,13 +21,34 @@ header: "Manage"
 options:
   - label: "View all (#N items)"
     description: "Show detailed status of all tracked items"
+  - label: "Statusline settings..."
+    description: "Configure context/quota display"
   - label: "Acknowledge alerts"
     description: "Mark new items as seen"
   - label: "Remove item..."
     description: "Stop tracking a specific item"
-  - label: "Clear all"
-    description: "Stop all tracking"
 ```
+
+## Follow-up: Statusline Settings
+
+If user selects "Statusline settings...", show:
+
+```
+question: "What to configure?"
+header: "Statusline"
+options:
+  - label: "Context display"
+    description: "Currently: <bar/percent/threshold/off>"
+  - label: "Quota display"
+    description: "Currently: <bar/number/compact/off>"
+  - label: "Turn both off"
+    description: "Disable context and quota from statusline"
+```
+
+Based on selection:
+- "Context display" → Run `/hub-context`
+- "Quota display" → Run `/hub-quota`
+- "Turn both off" → Set `contextDisplay: null` and `quota.displayFormat: "off"` in config
 
 ## Follow-up: Remove Item
 

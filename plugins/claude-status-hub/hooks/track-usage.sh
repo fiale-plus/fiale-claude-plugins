@@ -5,13 +5,8 @@
 QUOTA_FILE="/tmp/status-hub-quota.json"
 CONFIG="$HOME/.claude/status-config.json"
 
-# Check if quota tracking is enabled
-if [ -f "$CONFIG" ]; then
-  QUOTA_ENABLED=$(jq -r '.quota.displayFormat // "off"' "$CONFIG" 2>/dev/null)
-  [ "$QUOTA_ENABLED" = "off" ] && exit 0
-else
-  exit 0
-fi
+# Always track if plugin config exists (display is separate from tracking)
+[ ! -f "$CONFIG" ] && exit 0
 
 # Get tool input/output from environment (set by Claude Code hooks)
 TOOL_INPUT="${TOOL_INPUT:-}"
@@ -29,7 +24,8 @@ ESTIMATED_TOKENS=$((TOTAL_CHARS / 4))
 # Initialize quota file if it doesn't exist
 if [ ! -f "$QUOTA_FILE" ]; then
   SESSION_ID="${SESSION_ID:-$(date +%s)}"
-  echo "{\"sessionId\":\"$SESSION_ID\",\"startTime\":$(date +%s%3N),\"tokensUsed\":0,\"estimatedLimit\":45000,\"toolCalls\":0}" > "$QUOTA_FILE"
+  NOW_MS=$(($(date +%s) * 1000))
+  echo "{\"sessionId\":\"$SESSION_ID\",\"startTime\":$NOW_MS,\"tokensUsed\":0,\"estimatedLimit\":45000,\"toolCalls\":0}" > "$QUOTA_FILE"
 fi
 
 # Read current values
@@ -44,6 +40,7 @@ NEW_TOKENS=$((CURRENT_TOKENS + ESTIMATED_TOKENS))
 NEW_CALLS=$((CURRENT_CALLS + 1))
 
 # Write updated quota file
+NOW_MS=$(($(date +%s) * 1000))
 cat > "$QUOTA_FILE" << EOF
 {
   "sessionId": "$SESSION_ID",
@@ -51,6 +48,6 @@ cat > "$QUOTA_FILE" << EOF
   "tokensUsed": $NEW_TOKENS,
   "estimatedLimit": $ESTIMATED_LIMIT,
   "toolCalls": $NEW_CALLS,
-  "lastUpdate": $(date +%s%3N)
+  "lastUpdate": $NOW_MS
 }
 EOF
