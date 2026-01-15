@@ -40,7 +40,7 @@ touch "$LOCKFILE"
 log "Starting refresh: service=$SERVICE, fg_count=$FG_COUNT"
 
 # Build allowed tools list
-ALLOWED="Read,Write,Bash,mcp__claude-in-chrome__*,mcp__plugin_sentry_sentry__*"
+ALLOWED="Read,Write,Bash,mcp__claude-in-chrome__*,mcp__plugin_sentry_sentry__*,mcp__tradingview__*"
 
 log "Spawning background CLI with --chrome"
 

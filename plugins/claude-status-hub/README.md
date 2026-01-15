@@ -29,13 +29,19 @@
 
 ```
 Status Hub
-├─ Background
-│  └─ ▶ Blinding Lights - The Weeknd
-└─ Foreground
-   ├─ ✓ PR #42 anthropics/claude-code (approved)
-   ├─ 📈 ACME $142.50 (+3.2%)
-   ├─ 📧 Gmail (3 unread)
-   └─ 🔥 Sentry (2 issues)
+│
+├─ STATUSLINE
+│  ├─ Context: bar [████████░░] threshold 90%
+│  └─ Quota: number ⚡ threshold 80% (Max 5hrs)
+│
+├─ FOREGROUND
+│  ├─ #1  ✓ PR #142 anthropics/claude-code (approved)
+│  ├─ #2  ! PR #138 anthropics/claude-code (changes requested)
+│  ├─ #3  📊 finance: GOOGL -0.91% | YOU +1.13% | ATAT -1.70%
+│  └─ #4  🔥 Sentry (2 issues)
+│
+└─ BACKGROUND
+   └─ #5  ▶ youtube-music: Blinding Lights - The Weeknd
 ```
 
 <sub>*Use responsibly - respect site terms and rate limits</sub>
@@ -61,7 +67,7 @@ Firing off PRs and moving on to new code - that's the flow. But my personal cont
 /hub-play daft punk
 
 # See everything
-/hub-list
+/hub-tree
 ```
 
 ## Commands
@@ -69,7 +75,7 @@ Firing off PRs and moving on to new code - that's the flow. But my personal cont
 | Command | Description |
 |---------|-------------|
 | `/hub <pr-url>` | Start tracking a GitHub PR |
-| `/hub-list` | Display all tracked items as tree view |
+| `/hub-tree` | Display all tracked items as tree view |
 | `/hub-play <query>` | Search and play music |
 | `/hub-play pause` | Pause current track |
 | `/hub-play resume` | Resume playback |
@@ -127,6 +133,22 @@ The statusline adapts based on what needs attention:
 ```
 › ! PR #123 needs review › >
 ```
+
+### Context & Quota Awareness
+
+Optional: See your session context and daily quota usage at a glance.
+
+```
+❯ › [████████░░] 82% › ⚡85% › ⏸ Bad Dream - Cannons › 📊 1/3 ↑ -0.5% avg >
+     └─ context ──┘    └ quota    └─ music ─────────┘    └─ stocks ──────┘
+```
+
+- **Context bar** `[████████░░] 82%` - How full your session is (compaction coming soon)
+- **Quota** `⚡85%` - Estimated daily budget used (based on real tokens)
+
+Configure with `/hub-context` and `/hub-quota`. Colors shift green → yellow → red as usage climbs.
+
+*Note: Quota is an estimate based on context window tokens. Check [console.anthropic.com](https://console.anthropic.com) for actual usage.*
 
 ## Requirements
 
@@ -188,6 +210,15 @@ Red text or error icon means a background refresh failed. Common causes:
 - MCP server not responding
 
 **Fix**: Run `/hub-ack` to acknowledge and clear, then send a message to retry.
+
+### What does the skull 💀 mean?
+
+The skull icon appears when the background refresh daemon hasn't updated in over 3 minutes. This usually means:
+- The daemon process died (terminal was closed and reopened)
+- System went to sleep and daemon didn't recover
+- Daemon crashed due to an error
+
+**Fix**: Restart Claude Code to respawn the daemon, or run any command to trigger a manual refresh.
 
 ### I installed a new MCP or skill but statusline doesn't pick it up
 

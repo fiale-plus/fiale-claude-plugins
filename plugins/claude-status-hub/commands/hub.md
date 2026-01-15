@@ -10,7 +10,7 @@ Parse `$ARGUMENTS` and route to appropriate sub-skill:
 
 | Pattern | Route |
 |---------|-------|
-| `list` | Use `hub-list` skill |
+| `list` | Use `hub-tree` skill |
 | `ack` or `ack #N` | Use `hub-ack` skill with argument |
 | `manage` | Use `hub-manage` skill |
 | `play <query>` | Use `hub-play` skill with query |
