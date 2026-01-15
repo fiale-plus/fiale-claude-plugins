@@ -1,5 +1,5 @@
 ---
-name: hub-list
+name: hub-tree
 description: Display status hub as numbered tree view
 ---
 

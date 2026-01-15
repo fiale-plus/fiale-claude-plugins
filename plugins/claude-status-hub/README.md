@@ -67,7 +67,7 @@ Firing off PRs and moving on to new code - that's the flow. But my personal cont
 /hub-play daft punk
 
 # See everything
-/hub-list
+/hub-tree
 ```
 
 ## Commands
@@ -75,7 +75,7 @@ Firing off PRs and moving on to new code - that's the flow. But my personal cont
 | Command | Description |
 |---------|-------------|
 | `/hub <pr-url>` | Start tracking a GitHub PR |
-| `/hub-list` | Display all tracked items as tree view |
+| `/hub-tree` | Display all tracked items as tree view |
 | `/hub-play <query>` | Search and play music |
 | `/hub-play pause` | Pause current track |
 | `/hub-play resume` | Resume playback |
