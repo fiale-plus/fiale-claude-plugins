@@ -108,8 +108,8 @@ If no custom skill exists, use the built-in logic based on item type:
 
 For each PR item:
 ```bash
-gh pr view <number> --repo <owner>/<repo> --json state,isDraft,reviewDecision,statusCheckRollup,title,comments --jq '{
-  state, isDraft, reviewDecision, title,
+gh pr view <number> --repo <owner>/<repo> --json state,isDraft,reviewDecision,statusCheckRollup,title,comments,mergeable,mergeStateStatus --jq '{
+  state, isDraft, reviewDecision, title, mergeable, mergeStateStatus,
   commentsCount: (.comments | length),
   checksCount: (.statusCheckRollup | length),
   checksPassed: ([.statusCheckRollup[] | select(.conclusion == "SUCCESS")] | length),
@@ -122,14 +122,28 @@ gh pr view <number> --repo <owner>/<repo> --json state,isDraft,reviewDecision,st
 - `state != lastSeen.state`
 - `reviewDecision != lastSeen.reviewDecision`
 - Checks failed when they weren't before
+- `mergeable` changed to "CONFLICTING" (new conflicts!)
+- PR became merge-ready (approved + checks pass + no conflicts)
 
-**Status Icon:**
-- `X` = checks failing
-- `~` = checks pending
-- `!` = changes requested
-- `?` = review required
-- `D` = draft
-- `✓` = approved + all checks pass
+**Status Icon Priority (worst wins):**
+1. `X` = checks failing
+2. `⚡` = merge conflicts (`mergeable == "CONFLICTING"`)
+3. `!` = changes requested
+4. `~` = checks pending
+5. `?` = review required
+6. `D` = draft
+7. `🚀` = ready to merge (approved + all checks pass + `mergeable == "MERGEABLE"` + not draft)
+8. `✓` = approved (but not all conditions for merge-ready)
+
+**Merge-Ready Detection:**
+A PR is merge-ready when ALL conditions are met:
+- `state == "OPEN"`
+- `isDraft == false`
+- `reviewDecision == "APPROVED"`
+- `checksFailed == 0` and `checksCount > 0` and all checks passed
+- `mergeable == "MERGEABLE"`
+
+When merge-ready, show `🚀` icon and optionally trigger alert.
 
 Update the item's fields in config (preserve other items).
 

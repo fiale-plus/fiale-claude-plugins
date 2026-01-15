@@ -16,12 +16,42 @@ DIM='\033[2m'
 ERROR_FILE="/tmp/status-hub-error.txt"
 BRIDGE_FILE="/tmp/status-hub.json"
 BASE_CONFIG="${HOME}/.claude/status-base-config.json"
+HUB_CONFIG="${HOME}/.claude/status-config.json"
+QUOTA_FILE="/tmp/status-hub-quota.json"
 PLAY_ICON="▶"
 PAUSE_ICON="⏸"
 
 # Read Claude Code's context JSON (stdin)
 input=$(cat)
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // "~"')
+
+# Extract context window usage
+# Calculate against USABLE space (excluding autocompact buffer) to show proximity to compaction
+ctx_percent=0
+ctx_available="false"
+USAGE=$(echo "$input" | jq '.context_window.current_usage')
+ctx_size=$(echo "$input" | jq -r '.context_window.context_window_size // 200000')
+# Autocompact buffer is ~22.5% of context - calculate usable space
+buffer=$((ctx_size * 225 / 1000))
+usable_size=$((ctx_size - buffer))
+
+if [ "$USAGE" != "null" ] && [ -n "$USAGE" ]; then
+  # Calculate from current_usage fields (as per docs)
+  ctx_used=$(echo "$USAGE" | jq -r '.input_tokens + .cache_creation_input_tokens + .cache_read_input_tokens // 0')
+  if [ "$usable_size" -gt 0 ] 2>/dev/null && [ "$ctx_used" -gt 0 ] 2>/dev/null; then
+    ctx_percent=$((ctx_used * 100 / usable_size))
+    [ "$ctx_percent" -gt 100 ] && ctx_percent=100  # Cap at 100%
+    ctx_available="true"
+  fi
+else
+  # Fallback: use total_input_tokens (cumulative, not ideal but something)
+  ctx_used=$(echo "$input" | jq -r '.context_window.total_input_tokens // 0')
+  if [ "$usable_size" -gt 0 ] 2>/dev/null && [ "$ctx_used" -gt 0 ] 2>/dev/null; then
+    ctx_percent=$((ctx_used * 100 / usable_size))
+    [ "$ctx_percent" -gt 100 ] && ctx_percent=100  # Cap at 100%
+    ctx_available="true"
+  fi
+fi
 
 # Default base prompt function
 get_default_prompt() {
@@ -90,11 +120,98 @@ if [[ "$BASE_TYPE" != "command" ]] && git -C "$cwd" rev-parse --git-dir > /dev/n
   git -C "$cwd" --no-optional-locks diff-index --quiet HEAD -- 2>/dev/null || GIT_PART="${GIT_PART}${YELLOW}*${RESET}"
 fi
 
+# Build context display part
+CONTEXT_PART=""
+if [ -f "$HUB_CONFIG" ]; then
+  CTX_DISPLAY=$(jq -r '.contextDisplay // "off"' "$HUB_CONFIG" 2>/dev/null)
+  CTX_THRESHOLD=$(jq -r '.contextAlertThreshold // 80' "$HUB_CONFIG" 2>/dev/null)
+else
+  CTX_DISPLAY="off"
+  CTX_THRESHOLD=80
+fi
+
+if [ "$CTX_DISPLAY" != "off" ] && [ "$ctx_available" = "true" ]; then
+  # Determine color based on usage
+  if [ "$ctx_percent" -ge 80 ]; then
+    CTX_COLOR="$RED"
+  elif [ "$ctx_percent" -ge 60 ]; then
+    CTX_COLOR="$YELLOW"
+  else
+    CTX_COLOR="$GREEN"
+  fi
+
+  case "$CTX_DISPLAY" in
+    bar)
+      # Build 10-char progress bar: [████░░░░░░ 42%]
+      filled=$((ctx_percent / 10))
+      # Cap at 10 to prevent overflow
+      [ "$filled" -gt 10 ] && filled=10
+      empty=$((10 - filled))
+      BAR=""
+      for ((i=0; i<filled; i++)); do BAR="${BAR}█"; done
+      for ((i=0; i<empty; i++)); do BAR="${BAR}░"; done
+      CONTEXT_PART=" ${DIM}›${RESET} ${CTX_COLOR}[${BAR}]${RESET} ${DIM}${ctx_percent}%${RESET}"
+      ;;
+    percent)
+      CONTEXT_PART=" ${DIM}›${RESET} ${CTX_COLOR}${ctx_percent}%${RESET}"
+      ;;
+    threshold)
+      # Only show if above threshold
+      if [ "$ctx_percent" -ge "$CTX_THRESHOLD" ]; then
+        CONTEXT_PART=" ${DIM}›${RESET} ${CTX_COLOR}⚠ ${ctx_percent}%${RESET}"
+      fi
+      ;;
+  esac
+fi
+
+# Build quota display part (from PostToolUse tracking)
+QUOTA_PART=""
+if [ -f "$HUB_CONFIG" ] && [ -f "$QUOTA_FILE" ]; then
+  QUOTA_DISPLAY=$(jq -r '.quota.displayFormat // "off"' "$HUB_CONFIG" 2>/dev/null)
+  QUOTA_THRESHOLD=$(jq -r '.quota.alertThreshold // 80' "$HUB_CONFIG" 2>/dev/null)
+
+  if [ "$QUOTA_DISPLAY" != "off" ]; then
+    TOKENS_USED=$(jq -r '.tokensUsed // 0' "$QUOTA_FILE" 2>/dev/null)
+    ESTIMATED_LIMIT=$(jq -r '.estimatedLimit // 45000' "$QUOTA_FILE" 2>/dev/null)
+
+    if [ "$ESTIMATED_LIMIT" -gt 0 ] 2>/dev/null; then
+      QUOTA_PERCENT=$((TOKENS_USED * 100 / ESTIMATED_LIMIT))
+
+      # Determine color
+      if [ "$QUOTA_PERCENT" -ge 90 ]; then
+        QUOTA_COLOR="$RED"
+      elif [ "$QUOTA_PERCENT" -ge 75 ]; then
+        QUOTA_COLOR="$YELLOW"
+      else
+        QUOTA_COLOR="$GREEN"
+      fi
+
+      case "$QUOTA_DISPLAY" in
+        bar)
+          filled=$((QUOTA_PERCENT / 10))
+          [ "$filled" -gt 10 ] && filled=10
+          empty=$((10 - filled))
+          BAR=""
+          for ((i=0; i<filled; i++)); do BAR="${BAR}█"; done
+          for ((i=0; i<empty; i++)); do BAR="${BAR}░"; done
+          QUOTA_PART=" ${DIM}›${RESET} ${QUOTA_COLOR}⚡[${BAR}]${RESET}"
+          ;;
+        number)
+          QUOTA_PART=" ${DIM}›${RESET} ${QUOTA_COLOR}⚡${QUOTA_PERCENT}%${RESET}"
+          ;;
+        compact)
+          QUOTA_PART=" ${DIM}›${RESET} ${QUOTA_COLOR}⚡${QUOTA_PERCENT}${RESET}"
+          ;;
+      esac
+    fi
+  fi
+fi
+
 # Check for error file first (highest priority)
 if [ -f "$ERROR_FILE" ]; then
   ERROR_MSG=$(cat "$ERROR_FILE" 2>/dev/null)
   if [ -n "$ERROR_MSG" ]; then
-    printf '%b' "${BASE}${GIT_PART} ${DIM}›${RESET} ${RED}⚠ ${ERROR_MSG}${RESET} ${CYAN}>${RESET}"
+    printf '%b' "${BASE}${GIT_PART}${CONTEXT_PART}${QUOTA_PART} ${DIM}›${RESET} ${RED}⚠ ${ERROR_MSG}${RESET} ${CYAN}>${RESET}"
     exit 0
   fi
 fi
@@ -109,14 +226,8 @@ if [ -f "$BRIDGE_FILE" ]; then
   NOW_MS=$(($(date +%s) * 1000))
   AGE_MS=$((NOW_MS - BRIDGE_TS))
 
-  # Check for stale data (> 5 minutes old)
-  if [ "$AGE_MS" -ge 300000 ]; then
-    printf '%b' "${BASE}${GIT_PART} ${DIM}›${RESET} ${YELLOW}⚠ Status stale${RESET} ${CYAN}>${RESET}"
-    exit 0
-  fi
-
-  # Data is fresh, process it
-  if [ "$AGE_MS" -lt 300000 ]; then
+  # Process hub data (no stale warning - just show last known status)
+  if true; then
     # Check for refresh errors first
     ERROR_MSG=$(jq -r '.error.message // empty' "$BRIDGE_FILE" 2>/dev/null)
     HAS_ERROR="false"
@@ -195,5 +306,5 @@ if [ -f "$BRIDGE_FILE" ]; then
   fi
 fi
 
-# Combine all parts (order: base prompt > background > foreground - always same order)
-printf '%b' "${BASE}${GIT_PART}${BACKGROUND_PART}${FOREGROUND_PART} ${CYAN}>${RESET}"
+# Combine all parts (order: base > git > context > quota > background > foreground)
+printf '%b' "${BASE}${GIT_PART}${CONTEXT_PART}${QUOTA_PART}${BACKGROUND_PART}${FOREGROUND_PART} ${CYAN}>${RESET}"
