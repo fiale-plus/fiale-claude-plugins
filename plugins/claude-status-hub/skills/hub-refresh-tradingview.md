@@ -1,9 +1,6 @@
 ---
 name: hub-refresh-tradingview
 description: Refresh TradingView financial data for Status Hub
-author: user
-created: 2026-01-15
-source: mcp
 ---
 
 # Refresh TradingView Financial Data
