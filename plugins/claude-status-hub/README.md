@@ -29,13 +29,19 @@
 
 ```
 Status Hub
-├─ Background
-│  └─ ▶ Blinding Lights - The Weeknd
-└─ Foreground
-   ├─ ✓ PR #42 anthropics/claude-code (approved)
-   ├─ 📈 ACME $142.50 (+3.2%)
-   ├─ 📧 Gmail (3 unread)
-   └─ 🔥 Sentry (2 issues)
+│
+├─ STATUSLINE
+│  ├─ Context: bar [████████░░] threshold 90%
+│  └─ Quota: number ⚡ threshold 80% (Max 5hrs)
+│
+├─ FOREGROUND
+│  ├─ #1  ✓ PR #142 anthropics/claude-code (approved)
+│  ├─ #2  ! PR #138 anthropics/claude-code (changes requested)
+│  ├─ #3  📊 finance: GOOGL -0.91% | AAPL +1.2%
+│  └─ #4  🔥 Sentry (2 issues)
+│
+└─ BACKGROUND
+   └─ #5  ▶ youtube-music: Blinding Lights - The Weeknd
 ```
 
 <sub>*Use responsibly - respect site terms and rate limits</sub>
