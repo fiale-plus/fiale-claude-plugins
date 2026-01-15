@@ -21,3 +21,7 @@ yarn-error.log
 
 # Local config
 *.local.md
+
+# Local files
+.claude/
+.mcp.json
