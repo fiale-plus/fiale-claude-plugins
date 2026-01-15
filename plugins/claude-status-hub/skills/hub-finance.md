@@ -61,7 +61,7 @@ Add to `~/.claude/status-config.json` in the `foreground` array:
 
 ```json
 {
-  "service": "tradingview",
+  "service": "finance",
   "symbols": ["NASDAQ:AAPL", "NASDAQ:GOOGL"],
   "alertThreshold": {
     "changePercent": 5,

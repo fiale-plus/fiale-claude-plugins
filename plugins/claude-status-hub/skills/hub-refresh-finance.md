@@ -1,6 +1,6 @@
 ---
-name: hub-refresh-tradingview
-description: Refresh TradingView financial data for Status Hub
+name: hub-refresh-finance
+description: Refresh financial data for Status Hub via TradingView MCP
 ---
 
 # Refresh TradingView Financial Data
@@ -12,7 +12,7 @@ Called by hub-refresh.md when processing items with `service == "tradingview"`.
 Each TradingView item in `foreground[]`:
 ```json
 {
-  "service": "tradingview",
+  "service": "finance",
   "symbols": ["NASDAQ:AAPL", "NASDAQ:GOOGL"],
   "alertThreshold": {
     "changePercent": 5,
@@ -55,7 +55,7 @@ Set `hasAlert: true` if ANY symbol:
 **Single symbol:**
 ```json
 {
-  "site": "tradingview",
+  "site": "finance",
   "icon": "📈",
   "title": "AAPL",
   "detail": "$189.50 +2.3%",
@@ -66,7 +66,7 @@ Set `hasAlert: true` if ANY symbol:
 **Multiple symbols:**
 ```json
 {
-  "site": "tradingview",
+  "site": "finance",
   "icon": "📊",
   "title": "3/5 ↑",
   "detail": "+1.2% avg",
@@ -81,7 +81,7 @@ Set `hasAlert: true` if ANY symbol:
 **Alert state:**
 ```json
 {
-  "site": "tradingview",
+  "site": "finance",
   "icon": "🔥",
   "title": "NVDA",
   "detail": "$890 +8.5%!",
