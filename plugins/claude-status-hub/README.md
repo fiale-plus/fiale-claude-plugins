@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
 ```
-~/ [████████░░] 80% › ⚡85% › ▶ Blinding Lights - The Weeknd › ✓#142 !#138 › 📊 1/3 ↑ -0.11% avg › 🔥2 > 
+~/ [████████░░] 80% › ⚡85% › ▶ Blinding Lights - The Weeknd › ✓#142 !#138 › 📊 1/3 ↑ -0.5% avg › 🔥2 > 
 
 /hub-tree
 Status Hub
@@ -18,7 +18,7 @@ Status Hub
 ├─ FOREGROUND (alerts)
 │  ├─ #1  ✓ PR #142 anthropics/claude-code (approved)
 │  ├─ #2  ! PR #138 anthropics/claude-code (changes requested)
-│  ├─ #3  📊 GOOGL -0.91% | NVDA +1.13% | TSLA -1.70%
+│  ├─ #3  📊 finance: GOOGL -0.91% | YOU +1.13% | ATAT -1.70% 
 │  └─ #4  🔥 Sentry (2 issues)
 │
 └─ BACKGROUND (ambient)
