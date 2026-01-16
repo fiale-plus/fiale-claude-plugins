@@ -6,10 +6,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
 ```
+~/ [████████░░] 80% › ⚡85% › ▶ Blinding Lights - The Weeknd › ✓#142 !#138 › 📊 1/3 ↑ -0.11% avg › 🔥2 > 
+
+/hub-tree
 Status Hub
 │
-├─ CONTEXT
-│  ├─ Bar: [████████░░] threshold 90%
+├─ STATS
+│  ├─ Context: [████████░░] threshold 90%
 │  └─ Quota: ⚡85% threshold 80%
 │
 ├─ FOREGROUND (alerts)
