@@ -10,16 +10,19 @@ Plugins for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 **Your world at a glance, without leaving the terminal.**
 
 ```
+~/ [████████░░] 80% › ⚡85% › ▶ Blinding Lights - The Weeknd › ✓#142 !#138 › 📊 1/3 ↑ -0.5% avg › 🔥2 > 
+
+/hub-tree
 Status Hub
 │
-├─ CONTEXT
-│  ├─ Bar: [████████░░] threshold 90%
+├─ STATS
+│  ├─ Context: [████████░░] threshold 90%
 │  └─ Quota: ⚡85% threshold 80%
 │
 ├─ FOREGROUND (alerts)
 │  ├─ #1  ✓ PR #142 anthropics/claude-code (approved)
 │  ├─ #2  ! PR #138 anthropics/claude-code (changes requested)
-│  ├─ #3  📊 GOOGL -0.91% | NVDA +1.13% | TSLA -1.70%
+│  ├─ #3  📊 finance: GOOGL -0.91% | YOU +1.13% | ATAT -1.70% 
 │  └─ #4  🔥 Sentry (2 issues)
 │
 └─ BACKGROUND (ambient)
