@@ -53,18 +53,25 @@ while true; do
   if [ $((ITERATION % FULL_REFRESH_EVERY)) -eq 0 ]; then
     timeout 120 claude -p --chrome --allowedTools "$FULL_ALLOWED" -- \
       "Read and follow the hub-refresh skill at $FULL_SKILL" 2>/dev/null || true
-    continue
+  else
+    # Light refresh: PRs (pure bash, fast)
+    if [ -x "$PR_SCRIPT" ]; then
+      "$PR_SCRIPT" 2>/dev/null || true
+    fi
+
+    # Light refresh: music if configured
+    SERVICE=$(jq -r '.background.service // "off"' "$CONFIG" 2>/dev/null)
+    if [ "$SERVICE" != "off" ]; then
+      timeout 30 claude -p --chrome --allowedTools "Read,Write,Bash,mcp__claude-in-chrome__*" -- \
+        "Read and follow the hub-refresh-music skill at $MUSIC_SKILL" 2>/dev/null || true
+    fi
   fi
 
-  # Light refresh: PRs (pure bash, fast)
-  if [ -x "$PR_SCRIPT" ]; then
-    "$PR_SCRIPT" 2>/dev/null || true
-  fi
-
-  # Light refresh: music if configured
-  SERVICE=$(jq -r '.background.service // "off"' "$CONFIG" 2>/dev/null)
-  if [ "$SERVICE" != "off" ]; then
-    timeout 30 claude -p --chrome --allowedTools "Read,Write,Bash,mcp__claude-in-chrome__*" -- \
-      "Read and follow the hub-refresh-music skill at $MUSIC_SKILL" 2>/dev/null || true
+  # Always update timestamp to show daemon is alive (prevents skull)
+  NOW_MS=$(($(date +%s) * 1000))
+  if [ -f "$BRIDGE" ]; then
+    jq --argjson ts "$NOW_MS" '.timestamp = $ts' "$BRIDGE" > "${BRIDGE}.tmp" && mv "${BRIDGE}.tmp" "$BRIDGE"
+  else
+    echo "{\"timestamp\": $NOW_MS, \"background\": null, \"foreground\": []}" > "$BRIDGE"
   fi
 done
