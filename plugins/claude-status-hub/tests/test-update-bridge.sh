@@ -15,8 +15,8 @@ ERROR_FILE="/tmp/status-hub-error.txt"
 # Backup existing files
 BACKUP_BRIDGE=""
 BACKUP_ERROR=""
-[ -f "$BRIDGE" ] && BACKUP_BRIDGE=$(cat "$BRIDGE") && rm -f "$BRIDGE"
-[ -f "$ERROR_FILE" ] && BACKUP_ERROR=$(cat "$ERROR_FILE") && rm -f "$ERROR_FILE"
+if [ -f "$BRIDGE" ]; then BACKUP_BRIDGE=$(cat "$BRIDGE"); rm -f "$BRIDGE"; fi
+if [ -f "$ERROR_FILE" ]; then BACKUP_ERROR=$(cat "$ERROR_FILE"); rm -f "$ERROR_FILE"; fi
 
 cleanup() {
   rm -f "$BRIDGE" "$ERROR_FILE"

@@ -19,10 +19,10 @@ BACKUP_BRIDGE=""
 BACKUP_ERROR=""
 BACKUP_HUB_CONFIG=""
 BACKUP_BASE_CONFIG=""
-[ -f "$BRIDGE" ] && BACKUP_BRIDGE=$(cat "$BRIDGE")
-[ -f "$ERROR_FILE" ] && BACKUP_ERROR=$(cat "$ERROR_FILE")
-[ -f "$HUB_CONFIG" ] && BACKUP_HUB_CONFIG=$(cat "$HUB_CONFIG")
-[ -f "$BASE_CONFIG" ] && BACKUP_BASE_CONFIG=$(cat "$BASE_CONFIG")
+if [ -f "$BRIDGE" ]; then BACKUP_BRIDGE=$(cat "$BRIDGE"); fi
+if [ -f "$ERROR_FILE" ]; then BACKUP_ERROR=$(cat "$ERROR_FILE"); fi
+if [ -f "$HUB_CONFIG" ]; then BACKUP_HUB_CONFIG=$(cat "$HUB_CONFIG"); fi
+if [ -f "$BASE_CONFIG" ]; then BACKUP_BASE_CONFIG=$(cat "$BASE_CONFIG"); fi
 
 # Ensure config directory exists (for CI environments)
 mkdir -p "$(dirname "$HUB_CONFIG")"

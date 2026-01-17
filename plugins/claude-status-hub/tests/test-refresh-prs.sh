@@ -15,8 +15,8 @@ CONFIG="$HOME/.claude/status-config.json"
 # Backup existing files
 BACKUP_BRIDGE=""
 BACKUP_CONFIG=""
-[ -f "$BRIDGE" ] && BACKUP_BRIDGE=$(cat "$BRIDGE")
-[ -f "$CONFIG" ] && BACKUP_CONFIG=$(cat "$CONFIG")
+if [ -f "$BRIDGE" ]; then BACKUP_BRIDGE=$(cat "$BRIDGE"); fi
+if [ -f "$CONFIG" ]; then BACKUP_CONFIG=$(cat "$CONFIG"); fi
 
 # Create mock gh directory
 MOCK_BIN="/tmp/test-mock-bin-$$"
