@@ -1,0 +1,25 @@
+{
+  "timestamp": 1705500000000,
+  "background": {
+    "site": "spotify",
+    "icon": "▶",
+    "title": "Chill Vibes",
+    "detail": "Lo-Fi Beats"
+  },
+  "foreground": [
+    {
+      "site": "github-pr",
+      "icon": "✓",
+      "title": "PR #123",
+      "detail": "approved",
+      "hasAlert": false
+    },
+    {
+      "site": "github-pr",
+      "icon": "?",
+      "title": "PR #456",
+      "detail": "review required",
+      "hasAlert": false
+    }
+  ]
+}

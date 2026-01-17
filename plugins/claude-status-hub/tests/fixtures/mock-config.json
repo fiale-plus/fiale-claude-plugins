@@ -1,0 +1,26 @@
+{
+  "foreground": [
+    {
+      "owner": "testowner",
+      "repo": "testrepo",
+      "number": 123,
+      "lastSeen": {
+        "commentsCount": 2,
+        "reviewDecision": "REVIEW_REQUIRED",
+        "state": "OPEN"
+      }
+    },
+    {
+      "owner": "testowner",
+      "repo": "testrepo",
+      "number": 456,
+      "lastSeen": {
+        "commentsCount": 0,
+        "reviewDecision": "APPROVED",
+        "state": "OPEN"
+      }
+    }
+  ],
+  "contextDisplay": "percent",
+  "contextAlertThreshold": 80
+}

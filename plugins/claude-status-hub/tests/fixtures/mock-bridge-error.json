@@ -1,0 +1,13 @@
+{
+  "timestamp": 1705500000000,
+  "error": {
+    "message": "gh auth failed"
+  },
+  "background": {
+    "site": "spotify",
+    "icon": "▶",
+    "title": "Test Song",
+    "detail": "Test Artist"
+  },
+  "foreground": []
+}

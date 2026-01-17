@@ -1,0 +1,25 @@
+{
+  "timestamp": 1705500000000,
+  "background": {
+    "site": "spotify",
+    "icon": "▶",
+    "title": "Test Song",
+    "detail": "Test Artist"
+  },
+  "foreground": [
+    {
+      "site": "github-pr",
+      "icon": "!",
+      "title": "PR #123",
+      "detail": "changes requested",
+      "hasAlert": true
+    },
+    {
+      "site": "github-pr",
+      "icon": "✓",
+      "title": "PR #456",
+      "detail": "approved",
+      "hasAlert": false
+    }
+  ]
+}
