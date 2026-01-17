@@ -21,10 +21,10 @@ run_test() {
   echo "--------------------------------------"
 
   if bash "$test_file"; then
-    ((TESTS_PASSED++))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
     echo ""
   else
-    ((TESTS_FAILED++))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
     echo ""
     echo "FAILED: $test_name"
     echo ""

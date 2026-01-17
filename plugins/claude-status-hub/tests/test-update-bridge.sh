@@ -31,12 +31,12 @@ TESTS_PASSED=0
 TESTS_FAILED=0
 
 pass() {
-  ((TESTS_PASSED++))
+  TESTS_PASSED=$((TESTS_PASSED + 1))
   echo "  PASS: $1"
 }
 
 fail() {
-  ((TESTS_FAILED++))
+  TESTS_FAILED=$((TESTS_FAILED + 1))
   echo "  FAIL: $1"
   echo "        Expected: $2"
   echo "        Got:      $3"
@@ -48,7 +48,7 @@ echo ""
 # --- Test sanitize() function via actual usage ---
 # Note: We check raw JSON content, not jq -r output (which decodes escapes)
 echo "Testing sanitization..."
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 
 # Test backslash escaping - check that JSON is valid with backslashes
 "$BIN_DIR/update-bridge.sh" "test" "T" 'path\to\file' "detail"
@@ -61,7 +61,7 @@ else
   fail "Backslash handling" "$expected" "$result"
 fi
 
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 # Test quote escaping - check that JSON is valid with quotes
 "$BIN_DIR/update-bridge.sh" "test" "T" 'say "hello"' "detail"
 # jq -r decodes escapes, so \" in JSON becomes "
@@ -73,7 +73,7 @@ else
   fail "Quote handling" "$expected" "$result"
 fi
 
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 # Test smart quotes don't break JSON validity
 # Note: Current sanitize() uses ASCII quotes in sed patterns, so smart quotes
 # pass through unchanged. The key test is that output remains valid JSON.
@@ -85,7 +85,7 @@ else
   fail "Smart quotes JSON validity" "valid JSON" "invalid JSON"
 fi
 
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 # Test newline stripping
 "$BIN_DIR/update-bridge.sh" "test" "T" $'line1\nline2' "detail"
 result=$(jq -r '.background.title' "$BRIDGE")
@@ -98,7 +98,7 @@ fi
 echo ""
 echo "Testing bridge JSON output..."
 
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 # Test basic bridge structure
 "$BIN_DIR/update-bridge.sh" "spotify" "▶" "Test Song" "Test Artist"
 if jq -e '.timestamp' "$BRIDGE" >/dev/null && \
@@ -109,7 +109,7 @@ else
   fail "Bridge structure" "timestamp, background, foreground" "$(cat "$BRIDGE")"
 fi
 
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 # Test background fields
 site=$(jq -r '.background.site' "$BRIDGE")
 icon=$(jq -r '.background.icon' "$BRIDGE")
@@ -121,7 +121,7 @@ else
   fail "Background fields" "spotify/▶/Test Song/Test Artist" "$site/$icon/$title/$detail"
 fi
 
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 # Test foreground array preservation (without --foreground flag)
 echo '{"foreground": [{"icon": "X"}]}' > "$BRIDGE"
 "$BIN_DIR/update-bridge.sh" "test" "T" "title" "detail"
@@ -132,7 +132,7 @@ else
   fail "Foreground preservation" "1" "$fg_count"
 fi
 
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 # Test foreground array replacement (with --foreground flag)
 "$BIN_DIR/update-bridge.sh" "test" "T" "title" "detail" --foreground '[{"icon": "A"}, {"icon": "B"}]'
 fg_count=$(jq '.foreground | length' "$BRIDGE")
@@ -145,7 +145,7 @@ fi
 echo ""
 echo "Testing error handling..."
 
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 # Test --error flag
 rm -f "$ERROR_FILE"
 "$BIN_DIR/update-bridge.sh" --error "Test error message"
@@ -155,7 +155,7 @@ else
   fail "Error file creation" "Test error message" "$(cat "$ERROR_FILE" 2>/dev/null || echo 'file missing')"
 fi
 
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 # Test --clear-error flag
 "$BIN_DIR/update-bridge.sh" --clear-error
 if [ ! -f "$ERROR_FILE" ]; then
@@ -164,7 +164,7 @@ else
   fail "Error file clearing" "file removed" "file still exists"
 fi
 
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 # Test that successful write clears error file
 echo "old error" > "$ERROR_FILE"
 "$BIN_DIR/update-bridge.sh" "test" "T" "title" "detail"

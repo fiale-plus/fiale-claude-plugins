@@ -42,12 +42,12 @@ TESTS_PASSED=0
 TESTS_FAILED=0
 
 pass() {
-  ((TESTS_PASSED++))
+  TESTS_PASSED=$((TESTS_PASSED + 1))
   echo "  PASS: $1"
 }
 
 fail() {
-  ((TESTS_FAILED++))
+  TESTS_FAILED=$((TESTS_FAILED + 1))
   echo "  FAIL: $1"
   echo "        Expected: $2"
   echo "        Got:      $3"
@@ -79,7 +79,7 @@ rm -f "$BASE_CONFIG"
 echo "Testing error state..."
 
 # Test error file display (highest priority)
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 rm -f "$BRIDGE"
 echo "Test error message" > "$ERROR_FILE"
 output=$(run_statusline)
@@ -94,7 +94,7 @@ echo ""
 echo "Testing alert state..."
 
 # Test alert state: foreground expanded, shows alert item
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 rm -f "$ERROR_FILE"
 NOW_MS=$(($(date +%s) * 1000))
 cat > "$BRIDGE" << EOF
@@ -114,7 +114,7 @@ else
 fi
 
 # Test alert state: background is compact (icon only)
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 # Background should show just icon, not full title
 if echo "$output" | grep -q "▶" && ! echo "$output" | grep -q "Song"; then
   pass "Alert state shows compact background (icon only)"
@@ -126,7 +126,7 @@ echo ""
 echo "Testing idle state..."
 
 # Test idle state: background expanded
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 NOW_MS=$(($(date +%s) * 1000))
 cat > "$BRIDGE" << EOF
 {
@@ -145,7 +145,7 @@ else
 fi
 
 # Test idle state: foreground shows count
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 if echo "$output" | grep -q "1 PR"; then
   pass "Idle state shows PR count"
 else
@@ -156,7 +156,7 @@ echo ""
 echo "Testing stale daemon indicator..."
 
 # Test stale bridge (timestamp > 3 minutes old) shows skull
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 OLD_TS=$(($(date +%s) * 1000 - 200000))  # 200 seconds ago
 cat > "$BRIDGE" << EOF
 {
@@ -173,7 +173,7 @@ else
 fi
 
 # Test fresh bridge doesn't show skull
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 NOW_MS=$(($(date +%s) * 1000))
 cat > "$BRIDGE" << EOF
 {
@@ -193,7 +193,7 @@ echo ""
 echo "Testing multiple foreground items..."
 
 # Test multiple PRs show count
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 NOW_MS=$(($(date +%s) * 1000))
 cat > "$BRIDGE" << EOF
 {
@@ -214,7 +214,7 @@ else
 fi
 
 # Test mixed foreground (PRs + other)
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 NOW_MS=$(($(date +%s) * 1000))
 cat > "$BRIDGE" << EOF
 {

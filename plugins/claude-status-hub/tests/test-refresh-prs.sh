@@ -47,12 +47,12 @@ TESTS_PASSED=0
 TESTS_FAILED=0
 
 pass() {
-  ((TESTS_PASSED++))
+  TESTS_PASSED=$((TESTS_PASSED + 1))
   echo "  PASS: $1"
 }
 
 fail() {
-  ((TESTS_FAILED++))
+  TESTS_FAILED=$((TESTS_FAILED + 1))
   echo "  FAIL: $1"
   echo "        Expected: $2"
   echo "        Got:      $3"
@@ -156,7 +156,7 @@ echo ""
 echo "Testing icon determination..."
 
 # Test MERGED state → M
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "" ""
 create_mock_gh "MERGED" "false" "" "UNKNOWN" 0 0 0
 run_refresh
@@ -168,7 +168,7 @@ else
 fi
 
 # Test CLOSED state → C
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "" ""
 create_mock_gh "CLOSED" "false" "" "UNKNOWN" 0 0 0
 run_refresh
@@ -180,7 +180,7 @@ else
 fi
 
 # Test checks failing → X
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "" ""
 create_mock_gh "OPEN" "false" "APPROVED" "MERGEABLE" 2 0 0
 run_refresh
@@ -192,7 +192,7 @@ else
 fi
 
 # Test conflicts → ⚡
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "" ""
 create_mock_gh "OPEN" "false" "APPROVED" "CONFLICTING" 0 0 0
 run_refresh
@@ -204,7 +204,7 @@ else
 fi
 
 # Test changes requested → !
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "" ""
 create_mock_gh "OPEN" "false" "CHANGES_REQUESTED" "MERGEABLE" 0 0 0
 run_refresh
@@ -216,7 +216,7 @@ else
 fi
 
 # Test checks pending → ~
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "" ""
 create_mock_gh "OPEN" "false" "APPROVED" "MERGEABLE" 0 2 0
 run_refresh
@@ -228,7 +228,7 @@ else
 fi
 
 # Test review required → ?
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "" ""
 create_mock_gh "OPEN" "false" "REVIEW_REQUIRED" "MERGEABLE" 0 0 0
 run_refresh
@@ -240,7 +240,7 @@ else
 fi
 
 # Test draft → D
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "" ""
 create_mock_gh "OPEN" "true" "APPROVED" "MERGEABLE" 0 0 0
 run_refresh
@@ -252,7 +252,7 @@ else
 fi
 
 # Test ready to merge → 🚀
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "" ""
 create_mock_gh "OPEN" "false" "APPROVED" "MERGEABLE" 0 0 0
 run_refresh
@@ -267,7 +267,7 @@ echo ""
 echo "Testing alert detection..."
 
 # Test new comment triggers alert
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 2 "APPROVED" "OPEN"  # lastSeen has 2 comments
 create_mock_gh "OPEN" "false" "APPROVED" "MERGEABLE" 0 0 5  # Now 5 comments
 run_refresh
@@ -279,7 +279,7 @@ else
 fi
 
 # Test review change triggers alert
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "REVIEW_REQUIRED" "OPEN"  # Was review required
 create_mock_gh "OPEN" "false" "APPROVED" "MERGEABLE" 0 0 0  # Now approved
 run_refresh
@@ -291,7 +291,7 @@ else
 fi
 
 # Test state change triggers alert
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "APPROVED" "OPEN"  # Was open
 create_mock_gh "MERGED" "false" "" "UNKNOWN" 0 0 0  # Now merged
 run_refresh
@@ -303,7 +303,7 @@ else
 fi
 
 # Test no change = no alert
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "APPROVED" "OPEN"  # Same as current
 create_mock_gh "OPEN" "false" "APPROVED" "MERGEABLE" 0 0 0  # Same state
 run_refresh
@@ -318,7 +318,7 @@ echo ""
 echo "Testing bridge output..."
 
 # Test bridge structure
-((TESTS_RUN++))
+TESTS_RUN=$((TESTS_RUN + 1))
 setup_config 0 "" ""
 # Create existing background in bridge
 cat > "$BRIDGE" << 'EOF'
