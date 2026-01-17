@@ -223,92 +223,65 @@ BACKGROUND_PART=""
 DAEMON_STALE_PART=""
 
 if [ -f "$BRIDGE_FILE" ]; then
-  # Read timestamp from JSON (milliseconds)
-  BRIDGE_TS=$(jq -r '.timestamp // 0' "$BRIDGE_FILE" 2>/dev/null)
-  NOW_MS=$(($(date +%s) * 1000))
-  AGE_MS=$((NOW_MS - BRIDGE_TS))
+  # Cache bridge file content for multiple jq queries (avoids repeated file reads)
+  BRIDGE_CONTENT=$(cat "$BRIDGE_FILE" 2>/dev/null)
+
+  # Read core data (timestamp, error, counts)
+  BRIDGE_TS=$(echo "$BRIDGE_CONTENT" | jq -r '.timestamp // 0')
+  ERROR_MSG=$(echo "$BRIDGE_CONTENT" | jq -r '.error.message // empty')
+  FG_COUNT=$(echo "$BRIDGE_CONTENT" | jq -r '.foreground | length')
+  HAS_ALERT=$(echo "$BRIDGE_CONTENT" | jq -r '[.foreground[] | select(.hasAlert == true)] | length > 0')
 
   # Check if daemon is stale (no update in >3 minutes = 180000ms)
+  NOW_MS=$(($(date +%s) * 1000))
+  AGE_MS=$((NOW_MS - BRIDGE_TS))
   if [ "$AGE_MS" -gt 180000 ]; then
     DAEMON_STALE_PART=" ${DIM}›${RESET} ${RED}💀${RESET}"
   fi
 
-  # Process hub data (no stale warning - just show last known status)
-  if true; then
-    # Check for refresh errors first
-    ERROR_MSG=$(jq -r '.error.message // empty' "$BRIDGE_FILE" 2>/dev/null)
-    HAS_ERROR="false"
-    if [ -n "$ERROR_MSG" ]; then
-      HAS_ERROR="true"
-      FOREGROUND_PART=" ${DIM}›${RESET} ${RED}⚠ ${ERROR_MSG}${RESET}"
-      # Still show background if available, but skip foreground processing
+  # Read background data (single jq call)
+  BG_DATA=$(echo "$BRIDGE_CONTENT" | jq -r '[.background.site, .background.icon, .background.title, .background.detail] | @tsv')
+  IFS=$'\t' read -r BG_SITE BG_ICON BG_TITLE BG_DETAIL <<< "$BG_DATA"
+
+  # Determine display state and render
+  if [ -n "$ERROR_MSG" ]; then
+    # ERROR STATE: show error, background expanded
+    FOREGROUND_PART=" ${DIM}›${RESET} ${RED}⚠ ${ERROR_MSG}${RESET}"
+    if [ -n "$BG_SITE" ] && [ -n "$BG_TITLE" ]; then
+      BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON} ${BG_TITLE:0:25} - ${BG_DETAIL:0:15}${RESET}"
     fi
-
-    # Read foreground array - find first with alert or count them
-    FG_COUNT=$(jq -r '.foreground | length' "$BRIDGE_FILE" 2>/dev/null || echo 0)
-    HAS_ALERT=$(jq -r '[.foreground[] | select(.hasAlert == true)] | length > 0' "$BRIDGE_FILE" 2>/dev/null || echo false)
-
-    # Get first item with alert, or first item if none have alerts
-    if [ "$HAS_ALERT" = "true" ]; then
-      FG_ICON=$(jq -r '[.foreground[] | select(.hasAlert == true)][0].icon // empty' "$BRIDGE_FILE" 2>/dev/null)
-      FG_TITLE=$(jq -r '[.foreground[] | select(.hasAlert == true)][0].title // empty' "$BRIDGE_FILE" 2>/dev/null)
-      FG_DETAIL=$(jq -r '[.foreground[] | select(.hasAlert == true)][0].detail // empty' "$BRIDGE_FILE" 2>/dev/null)
-    else
-      FG_ICON=$(jq -r '.foreground[0].icon // empty' "$BRIDGE_FILE" 2>/dev/null)
-      FG_TITLE=$(jq -r '.foreground[0].title // empty' "$BRIDGE_FILE" 2>/dev/null)
-      FG_DETAIL=$(jq -r '.foreground[0].detail // empty' "$BRIDGE_FILE" 2>/dev/null)
+  elif [ "$HAS_ALERT" = "true" ] && [ "$FG_COUNT" -gt 0 ]; then
+    # ALERT STATE: foreground expanded, background compact
+    FG_DATA=$(echo "$BRIDGE_CONTENT" | jq -r '([.foreground[] | select(.hasAlert == true)][0] // {}) | [.icon, .title, .detail] | @tsv')
+    IFS=$'\t' read -r FG_ICON FG_TITLE FG_DETAIL <<< "$FG_DATA"
+    FOREGROUND_PART=" ${DIM}›${RESET} ${RED}${FG_ICON} ${FG_TITLE} ${FG_DETAIL}${RESET}"
+    if [ -n "$BG_SITE" ] && [ -n "$BG_ICON" ]; then
+      BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON}${RESET}"
     fi
-
-    # Read background (music, etc)
-    BG_SITE=$(jq -r '.background.site // empty' "$BRIDGE_FILE" 2>/dev/null)
-    BG_ICON=$(jq -r '.background.icon // empty' "$BRIDGE_FILE" 2>/dev/null)
-    BG_TITLE=$(jq -r '.background.title // empty' "$BRIDGE_FILE" 2>/dev/null)
-    BG_DETAIL=$(jq -r '.background.detail // empty' "$BRIDGE_FILE" 2>/dev/null)
-
-    if [ "$HAS_ERROR" = "true" ]; then
-      # ERROR STATE: error already in FOREGROUND_PART, just add background
-      if [ -n "$BG_SITE" ] && [ -n "$BG_TITLE" ]; then
-        TITLE_SHORT=$(echo "$BG_TITLE" | cut -c1-25)
-        DETAIL_SHORT=$(echo "$BG_DETAIL" | cut -c1-15)
-        BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON} ${TITLE_SHORT} - ${DETAIL_SHORT}${RESET}"
+  else
+    # IDLE STATE: background expanded, foreground compact (counts)
+    if [ -n "$BG_SITE" ] && [ -n "$BG_TITLE" ]; then
+      BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON} ${BG_TITLE:0:25} - ${BG_DETAIL:0:15}${RESET}"
+    fi
+    if [ "$FG_COUNT" -gt 0 ]; then
+      PR_COUNT=$(echo "$BRIDGE_CONTENT" | jq -r '[.foreground[] | select(.site == "github-pr")] | length')
+      OTHER_COUNT=$((FG_COUNT - PR_COUNT))
+      FG_PARTS=""
+      if [ "$PR_COUNT" -gt 0 ]; then
+        PR_LABEL="PRs"; [ "$PR_COUNT" = "1" ] && PR_LABEL="PR"
+        FG_PARTS="${PR_COUNT} ${PR_LABEL}"
       fi
-    elif [ "$HAS_ALERT" = "true" ] && [ "$FG_COUNT" -gt 0 ]; then
-      # ALERT STATE: foreground expanded, background compact
-      FOREGROUND_PART=" ${DIM}›${RESET} ${RED}${FG_ICON} ${FG_TITLE} ${FG_DETAIL}${RESET}"
-      if [ -n "$BG_SITE" ] && [ -n "$BG_ICON" ]; then
-        BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON}${RESET}"
-      fi
-    else
-      # IDLE STATE: background expanded, foreground compact (count only)
-      if [ -n "$BG_SITE" ] && [ -n "$BG_TITLE" ]; then
-        TITLE_SHORT=$(echo "$BG_TITLE" | cut -c1-25)
-        DETAIL_SHORT=$(echo "$BG_DETAIL" | cut -c1-15)
-        BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON} ${TITLE_SHORT} - ${DETAIL_SHORT}${RESET}"
-      fi
-      if [ "$FG_COUNT" -gt 0 ]; then
-        # Count PRs specifically (items with site=github-pr)
-        PR_COUNT=$(jq -r '[.foreground[] | select(.site == "github-pr")] | length' "$BRIDGE_FILE" 2>/dev/null || echo 0)
-        OTHER_COUNT=$((FG_COUNT - PR_COUNT))
-
-        FG_PARTS=""
-        if [ "$PR_COUNT" -gt 0 ]; then
-          PR_LABEL="PRs"; [ "$PR_COUNT" = "1" ] && PR_LABEL="PR"
-          FG_PARTS="${PR_COUNT} ${PR_LABEL}"
+      if [ "$OTHER_COUNT" -gt 0 ]; then
+        OTHER_DATA=$(echo "$BRIDGE_CONTENT" | jq -r '([.foreground[] | select(.site != "github-pr")][0] // {}) | [.icon // "•", .title // "", .detail // ""] | @tsv')
+        IFS=$'\t' read -r OTHER_ICON OTHER_TITLE OTHER_DETAIL <<< "$OTHER_DATA"
+        [ -n "$FG_PARTS" ] && FG_PARTS="${FG_PARTS} "
+        if [ -n "$OTHER_DETAIL" ]; then
+          FG_PARTS="${FG_PARTS}${OTHER_ICON} ${OTHER_TITLE:0:10} ${OTHER_DETAIL:0:20}"
+        else
+          FG_PARTS="${FG_PARTS}${OTHER_ICON} ${OTHER_TITLE:0:10}"
         fi
-        if [ "$OTHER_COUNT" -gt 0 ]; then
-          # Show first non-PR item's icon, title and detail
-          OTHER_ICON=$(jq -r '[.foreground[] | select(.site != "github-pr")][0].icon // "•"' "$BRIDGE_FILE" 2>/dev/null)
-          OTHER_TITLE=$(jq -r '[.foreground[] | select(.site != "github-pr")][0].title // ""' "$BRIDGE_FILE" 2>/dev/null | cut -c1-10)
-          OTHER_DETAIL=$(jq -r '[.foreground[] | select(.site != "github-pr")][0].detail // ""' "$BRIDGE_FILE" 2>/dev/null | cut -c1-20)
-          [ -n "$FG_PARTS" ] && FG_PARTS="${FG_PARTS} "
-          if [ -n "$OTHER_DETAIL" ]; then
-            FG_PARTS="${FG_PARTS}${OTHER_ICON} ${OTHER_TITLE} ${OTHER_DETAIL}"
-          else
-            FG_PARTS="${FG_PARTS}${OTHER_ICON} ${OTHER_TITLE}"
-          fi
-        fi
-        FOREGROUND_PART=" ${DIM}›${RESET} ${DIM}${FG_PARTS}${RESET}"
       fi
+      FOREGROUND_PART=" ${DIM}›${RESET} ${DIM}${FG_PARTS}${RESET}"
     fi
   fi
 fi

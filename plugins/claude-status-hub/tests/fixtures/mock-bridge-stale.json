@@ -1,0 +1,10 @@
+{
+  "timestamp": 1000000000000,
+  "background": {
+    "site": "spotify",
+    "icon": "▶",
+    "title": "Old Song",
+    "detail": "Old Artist"
+  },
+  "foreground": []
+}

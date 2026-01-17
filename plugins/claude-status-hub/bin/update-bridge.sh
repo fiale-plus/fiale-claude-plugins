@@ -22,12 +22,10 @@ fi
 
 # Sanitize input for JSON safety
 sanitize() {
-  echo "$1" | \
-    sed 's/\\/\\\\/g' | \
-    sed 's/"/\\"/g' | \
-    sed 's/"/"/g; s/"/"/g' | \
-    sed "s/'/'/g; s/'/'/g" | \
-    tr -d '\n\r\t'
+  echo "$1" | sed -e 's/\\/\\\\/g' \
+                  -e 's/"/\\"/g' \
+                  -e 's/"/"/g' -e 's/"/"/g' \
+                  -e "s/'/'/g" -e "s/'/'/g" | tr -d '\n\r\t'
 }
 
 SITE="$1"
