@@ -1,13 +1,19 @@
 #!/bin/bash
-# Background daemon - refreshes music every 90 seconds
+# Background daemon - refreshes status hub periodically
+# - Light refresh (PRs + music): every 90 seconds
+# - Full refresh (all services): every 6 minutes
 # Started by SessionStart hook, runs until terminal closes
 
 INTERVAL=90
+FULL_REFRESH_EVERY=4  # 4 × 90s = 6 minutes
 LOCKFILE="/tmp/status-hub-daemon.lock"
 CONFIG="$HOME/.claude/status-config.json"
 BRIDGE="/tmp/status-hub.json"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
-SKILL="${PLUGIN_ROOT}/skills/hub-refresh-music.md"
+MUSIC_SKILL="${PLUGIN_ROOT}/skills/hub-refresh-music.md"
+FULL_SKILL="${PLUGIN_ROOT}/skills/hub-refresh.md"
+PR_SCRIPT="${PLUGIN_ROOT}/bin/refresh-prs.sh"
+FULL_ALLOWED="Read,Write,Bash,mcp__claude-in-chrome__*,mcp__plugin_sentry_sentry__*,mcp__tradingview__*"
 
 # Prevent multiple daemons
 if [ -f "$LOCKFILE" ]; then
@@ -27,15 +33,14 @@ echo $$ > "$LOCKFILE"
 trap "rm -f $LOCKFILE" EXIT INT TERM
 
 # Main loop
+ITERATION=0
 while true; do
   sleep $INTERVAL
+  ITERATION=$((ITERATION + 1))
 
-  # Check if config exists and music is configured
   [ -f "$CONFIG" ] || continue
-  SERVICE=$(jq -r '.background.service // "off"' "$CONFIG" 2>/dev/null)
-  [ "$SERVICE" = "off" ] && continue
 
-  # Check if bridge exists and needs refresh
+  # Check if bridge needs refresh
   if [ -f "$BRIDGE" ]; then
     BRIDGE_TS=$(jq -r '.timestamp // 0' "$BRIDGE" 2>/dev/null)
     NOW_MS=$(($(date +%s) * 1000))
@@ -44,8 +49,29 @@ while true; do
     [ "$AGE_MS" -lt 60000 ] && continue
   fi
 
-  # Quick music refresh via Claude CLI
-  # Use timeout to prevent hanging
-  timeout 30 claude -p --chrome --allowedTools "Read,Write,Bash,mcp__claude-in-chrome__*" -- \
-    "Read and follow the hub-refresh-music skill at $SKILL" 2>/dev/null || true
+  # Every Nth iteration: full refresh (all services)
+  if [ $((ITERATION % FULL_REFRESH_EVERY)) -eq 0 ]; then
+    timeout 120 claude -p --chrome --allowedTools "$FULL_ALLOWED" -- \
+      "Read and follow the hub-refresh skill at $FULL_SKILL" 2>/dev/null || true
+  else
+    # Light refresh: PRs (pure bash, fast)
+    if [ -x "$PR_SCRIPT" ]; then
+      "$PR_SCRIPT" 2>/dev/null || true
+    fi
+
+    # Light refresh: music if configured
+    SERVICE=$(jq -r '.background.service // "off"' "$CONFIG" 2>/dev/null)
+    if [ "$SERVICE" != "off" ]; then
+      timeout 30 claude -p --chrome --allowedTools "Read,Write,Bash,mcp__claude-in-chrome__*" -- \
+        "Read and follow the hub-refresh-music skill at $MUSIC_SKILL" 2>/dev/null || true
+    fi
+  fi
+
+  # Always update timestamp to show daemon is alive (prevents skull)
+  NOW_MS=$(($(date +%s) * 1000))
+  if [ -f "$BRIDGE" ]; then
+    jq --argjson ts "$NOW_MS" '.timestamp = $ts' "$BRIDGE" > "${BRIDGE}.tmp" && mv "${BRIDGE}.tmp" "$BRIDGE"
+  else
+    echo "{\"timestamp\": $NOW_MS, \"background\": null, \"foreground\": []}" > "$BRIDGE"
+  fi
 done
