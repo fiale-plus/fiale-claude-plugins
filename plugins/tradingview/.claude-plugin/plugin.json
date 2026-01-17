@@ -1,0 +1,11 @@
+{
+  "name": "tradingview",
+  "version": "1.0.0",
+  "description": "AI-powered access to TradingView market screening - filter stocks, forex, crypto, and ETFs by 75+ fundamental and technical metrics",
+  "author": {
+    "name": "Pavel Fadeev",
+    "email": "pavel.fadeev@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": ["tradingview", "stocks", "forex", "crypto", "etf", "screening", "investing", "market-data"]
+}
