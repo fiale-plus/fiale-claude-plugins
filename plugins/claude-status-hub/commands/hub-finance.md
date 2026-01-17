@@ -31,6 +31,9 @@ The skill will:
 1. Ask for symbols to track (if not provided)
 2. Ask for alert threshold preferences
 3. Optionally set price targets
-4. Save configuration to ~/.claude/status-config.json
+4. Save configuration to `~/.claude/status-config.json` **in the `foreground[]` array**
 5. Verify TradingView MCP is working
-6. Show initial prices in statusline
+6. Update bridge file `/tmp/status-hub.json` with current prices
+7. Show initial prices in statusline
+
+**CRITICAL:** Finance items go in `foreground[]`, NOT a separate `finance` object.
