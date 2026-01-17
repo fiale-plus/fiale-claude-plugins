@@ -22,6 +22,9 @@ BACKUP_CONFIG=""
 MOCK_BIN="/tmp/test-mock-bin-$$"
 mkdir -p "$MOCK_BIN"
 
+# Ensure config directory exists (for CI environments)
+mkdir -p "$(dirname "$CONFIG")"
+
 cleanup() {
   rm -rf "$MOCK_BIN"
   rm -f "$BRIDGE"

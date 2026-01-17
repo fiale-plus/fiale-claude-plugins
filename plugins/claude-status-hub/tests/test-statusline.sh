@@ -24,6 +24,9 @@ BACKUP_BASE_CONFIG=""
 [ -f "$HUB_CONFIG" ] && BACKUP_HUB_CONFIG=$(cat "$HUB_CONFIG")
 [ -f "$BASE_CONFIG" ] && BACKUP_BASE_CONFIG=$(cat "$BASE_CONFIG")
 
+# Ensure config directory exists (for CI environments)
+mkdir -p "$(dirname "$HUB_CONFIG")"
+
 cleanup() {
   rm -f "$BRIDGE" "$ERROR_FILE"
   # Restore backups
