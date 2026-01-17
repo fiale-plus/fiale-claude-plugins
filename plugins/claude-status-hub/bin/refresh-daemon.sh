@@ -1,5 +1,5 @@
 #!/bin/bash
-# Background daemon - refreshes music every 90 seconds
+# Background daemon - refreshes music and PRs periodically
 # Started by SessionStart hook, runs until terminal closes
 
 INTERVAL=90
@@ -7,7 +7,8 @@ LOCKFILE="/tmp/status-hub-daemon.lock"
 CONFIG="$HOME/.claude/status-config.json"
 BRIDGE="/tmp/status-hub.json"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
-SKILL="${PLUGIN_ROOT}/skills/hub-refresh-music.md"
+MUSIC_SKILL="${PLUGIN_ROOT}/skills/hub-refresh-music.md"
+PR_SCRIPT="${PLUGIN_ROOT}/bin/refresh-prs.sh"
 
 # Prevent multiple daemons
 if [ -f "$LOCKFILE" ]; then
@@ -30,22 +31,29 @@ trap "rm -f $LOCKFILE" EXIT INT TERM
 while true; do
   sleep $INTERVAL
 
-  # Check if config exists and music is configured
   [ -f "$CONFIG" ] || continue
-  SERVICE=$(jq -r '.background.service // "off"' "$CONFIG" 2>/dev/null)
-  [ "$SERVICE" = "off" ] && continue
 
-  # Check if bridge exists and needs refresh
+  # Check if bridge needs refresh
+  SKIP_REFRESH=false
   if [ -f "$BRIDGE" ]; then
     BRIDGE_TS=$(jq -r '.timestamp // 0' "$BRIDGE" 2>/dev/null)
     NOW_MS=$(($(date +%s) * 1000))
     AGE_MS=$((NOW_MS - BRIDGE_TS))
     # Skip if bridge was updated recently (< 60s)
-    [ "$AGE_MS" -lt 60000 ] && continue
+    [ "$AGE_MS" -lt 60000 ] && SKIP_REFRESH=true
   fi
 
-  # Quick music refresh via Claude CLI
-  # Use timeout to prevent hanging
-  timeout 30 claude -p --chrome --allowedTools "Read,Write,Bash,mcp__claude-in-chrome__*" -- \
-    "Read and follow the hub-refresh-music skill at $SKILL" 2>/dev/null || true
+  [ "$SKIP_REFRESH" = "true" ] && continue
+
+  # Refresh PRs (pure bash, fast)
+  if [ -x "$PR_SCRIPT" ]; then
+    "$PR_SCRIPT" 2>/dev/null || true
+  fi
+
+  # Refresh music if configured (needs Claude CLI for Chrome)
+  SERVICE=$(jq -r '.background.service // "off"' "$CONFIG" 2>/dev/null)
+  if [ "$SERVICE" != "off" ]; then
+    timeout 30 claude -p --chrome --allowedTools "Read,Write,Bash,mcp__claude-in-chrome__*" -- \
+      "Read and follow the hub-refresh-music skill at $MUSIC_SKILL" 2>/dev/null || true
+  fi
 done
