@@ -19,6 +19,18 @@
       "source": "./plugins/claude-status-hub",
       "category": "productivity",
       "keywords": ["statusline", "github-pr", "calendar", "music", "alerts", "notifications"]
+    },
+    {
+      "name": "tradingview",
+      "description": "AI-powered access to TradingView market screening - filter stocks, forex, crypto, and ETFs by 75+ fundamental and technical metrics",
+      "version": "1.0.0",
+      "author": {
+        "name": "Pavel Fadeev",
+        "email": "pavel.fadeev@gmail.com"
+      },
+      "source": "./plugins/tradingview",
+      "category": "finance",
+      "keywords": ["tradingview", "stocks", "forex", "crypto", "etf", "screening", "investing", "market-data"]
     }
   ]
 }
