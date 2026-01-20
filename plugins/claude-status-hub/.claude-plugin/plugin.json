@@ -1,11 +1,20 @@
 {
   "name": "claude-status-hub",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Monitor what matters - PRs, music, custom alerts - right in your Claude Code statusline",
   "author": {
     "name": "Pavel Fadeev",
     "email": "pavel.fadeev@gmail.com"
   },
   "license": "MIT",
-  "keywords": ["claude-code", "claude", "status", "statusline", "notifications", "github-pr", "youtube-music", "spotify"]
+  "keywords": [
+    "claude-code",
+    "claude",
+    "status",
+    "statusline",
+    "notifications",
+    "github-pr",
+    "youtube-music",
+    "spotify"
+  ]
 }

@@ -15,19 +15,28 @@ FULL_SKILL="${PLUGIN_ROOT}/skills/hub-refresh.md"
 PR_SCRIPT="${PLUGIN_ROOT}/bin/refresh-prs.sh"
 FULL_ALLOWED="Read,Write,Bash,mcp__claude-in-chrome__*,mcp__plugin_sentry_sentry__*,mcp__tradingview__*"
 
-# Prevent multiple daemons
+# Get plugin version for staleness detection
+PLUGIN_VERSION=$(jq -r '.version' "${PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null || echo "unknown")
+
+# Prevent multiple daemons (version-aware)
 if [ -f "$LOCKFILE" ]; then
-  # Check if the PID in lockfile is still running
-  OLD_PID=$(cat "$LOCKFILE" 2>/dev/null)
+  LOCK_CONTENT=$(cat "$LOCKFILE" 2>/dev/null)
+  OLD_VERSION="${LOCK_CONTENT%%:*}"
+  OLD_PID="${LOCK_CONTENT##*:}"
+
   if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
-    exit 0  # Daemon already running
+    if [ "$OLD_VERSION" = "$PLUGIN_VERSION" ]; then
+      exit 0  # Same version daemon running, all good
+    fi
+    # Version mismatch - kill old daemon so we can start fresh
+    kill "$OLD_PID" 2>/dev/null
+    sleep 1
   fi
-  # Stale lock file, remove it
   rm -f "$LOCKFILE"
 fi
 
-# Write our PID to lockfile
-echo $$ > "$LOCKFILE"
+# Write our version:PID to lockfile
+echo "${PLUGIN_VERSION}:$$" > "$LOCKFILE"
 
 # Cleanup on exit
 trap "rm -f $LOCKFILE" EXIT INT TERM
@@ -37,6 +46,13 @@ ITERATION=0
 while true; do
   sleep $INTERVAL
   ITERATION=$((ITERATION + 1))
+
+  # Self-check: exit if plugin was updated (new version will spawn fresh daemon)
+  INSTALLED_VERSION=$(jq -r '.version' "${PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null || echo "unknown")
+  if [ "$INSTALLED_VERSION" != "$PLUGIN_VERSION" ]; then
+    rm -f "$LOCKFILE"
+    exit 0
+  fi
 
   [ -f "$CONFIG" ] || continue
 
