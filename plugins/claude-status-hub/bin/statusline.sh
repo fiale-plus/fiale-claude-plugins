@@ -286,5 +286,16 @@ if [ -f "$BRIDGE_FILE" ]; then
   fi
 fi
 
-# Combine all parts (order: base > git > context > quota > daemon-stale > background > foreground)
-printf '%b' "${BASE}${GIT_PART}${CONTEXT_PART}${QUOTA_PART}${DAEMON_STALE_PART}${BACKGROUND_PART}${FOREGROUND_PART} ${CYAN}>${RESET}"
+# Check for notification (green, expires after timestamp)
+NOTIFICATION_PART=""
+if [ -f "$BRIDGE_FILE" ]; then
+  NOTIF_MSG=$(echo "$BRIDGE_CONTENT" | jq -r '.notification.message // empty')
+  NOTIF_EXP=$(echo "$BRIDGE_CONTENT" | jq -r '.notification.expires // 0')
+  NOW_MS=$(($(date +%s) * 1000))
+  if [ -n "$NOTIF_MSG" ] && [ "$NOTIF_EXP" -gt "$NOW_MS" ] 2>/dev/null; then
+    NOTIFICATION_PART=" ${DIM}›${RESET} ${GREEN}${NOTIF_MSG}${RESET}"
+  fi
+fi
+
+# Combine all parts (order: base > git > context > quota > daemon-stale > background > foreground > notification)
+printf '%b' "${BASE}${GIT_PART}${CONTEXT_PART}${QUOTA_PART}${DAEMON_STALE_PART}${BACKGROUND_PART}${FOREGROUND_PART}${NOTIFICATION_PART} ${CYAN}>${RESET}"

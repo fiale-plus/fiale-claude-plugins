@@ -104,6 +104,10 @@ If found, read and follow that skill for this item's refresh logic.
 
 If no custom skill exists, use the built-in logic based on item type:
 
+### Calendar (items with `.service == "calendar"`)
+
+See `hub-refresh-calendar.md` for browser-based calendar refresh via Chrome MCP.
+
 ### GitHub PRs (items with `.owner` field)
 
 For each PR item:

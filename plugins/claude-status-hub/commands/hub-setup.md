@@ -129,12 +129,51 @@ Preserve all other settings in the file.
 
 Write the merged settings back to `~/.claude/settings.json`.
 
-### Step 8: Initialize Config Files
+### Step 8: Initialize Config Files (with Migration)
 
-Ensure config files exist and clear any stale errors:
-- `~/.claude/status-config.json`: `{"background": null, "foreground": []}`
-- `/tmp/status-hub.json`: `{"timestamp": null, "background": null, "foreground": []}`
-- Clear error file: `rm -f /tmp/status-hub-error.txt`
+Handle config files carefully - **never lose user data**:
+
+#### Status Config (`~/.claude/status-config.json`)
+
+1. **If file doesn't exist**: Create with defaults:
+   ```json
+   {"background": null, "foreground": []}
+   ```
+
+2. **If file exists but is empty/corrupt**:
+   - Check if backup exists (`~/.claude/status-config.json.bak`)
+   - If backup exists, restore from it
+   - If no backup, create fresh with defaults
+   - Warn user: "Config was empty/corrupt, initialized fresh"
+
+3. **If file exists and valid**: Run migration to ensure schema is current:
+   ```javascript
+   // Migration: ensure all required fields exist
+   config.foreground = config.foreground || [];
+   config.background = config.background || { service: null, tabId: null };
+
+   // v1.0 → v1.1: Add contextDisplay if missing
+   if (!config.contextDisplay) {
+     config.contextDisplay = "bar";
+     config.contextAlertThreshold = 80;
+   }
+
+   // Preserve all existing foreground items and their lastSeen state
+   ```
+
+4. **Always backup before modifying**:
+   ```bash
+   cp ~/.claude/status-config.json ~/.claude/status-config.json.bak
+   ```
+
+#### Bridge File (`/tmp/status-hub.json`)
+
+- Always safe to recreate (ephemeral)
+- `{"timestamp": null, "background": null, "foreground": []}`
+
+#### Error File
+
+- Clear stale errors: `rm -f /tmp/status-hub-error.txt`
 
 ### Step 9: Confirm Setup
 
