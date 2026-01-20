@@ -91,10 +91,22 @@ gh pr view <number> --repo <owner>/<repo> --json statusCheckRollup --jq '.status
 
 **If Buildkite MCP available** (`mcp__buildkite__*` tools):
 - **View logs**: `mcp__buildkite__get_job_logs` - richer output than gh CLI
-- **Rerun build**: `mcp__buildkite__retry_job` - direct Buildkite control
 - **Get build info**: `mcp__buildkite__get_build` - detailed build metadata
+- **List builds**: `mcp__buildkite__list_builds` - recent builds for pipeline
 
-**MCP setup**: Add to `.mcp.json`:
+**MCP setup** - prefer readonly for safety:
+```json
+{
+  "mcpServers": {
+    "buildkite": {
+      "type": "url",
+      "url": "https://mcp.buildkite.com/mcp/readonly"
+    }
+  }
+}
+```
+
+For rerun capability (requires write access):
 ```json
 {
   "mcpServers": {
@@ -210,12 +222,74 @@ If still waiting for approval:
 
    Conflicts detected with <baseRefName>
 
-   [1] Open PR in browser to resolve
-   [2] Fetch and resolve locally:
-       git fetch origin <headRefName>
-       git checkout <headRefName>
-       git merge origin/<baseRefName>
+   [1] 🤖 Resolve with AI (recommended)
+   [2] Open PR in browser to resolve
+   [3] Fetch and resolve locally
    [d] Dismiss
+```
+
+### AI Conflict Resolution
+
+When user selects "Resolve with AI":
+
+1. **Fetch and checkout the branch:**
+   ```bash
+   git fetch origin <headRefName> <baseRefName>
+   git checkout <headRefName>
+   git merge origin/<baseRefName>  # This will show conflicts
+   ```
+
+2. **List conflicting files:**
+   ```bash
+   git diff --name-only --diff-filter=U
+   ```
+
+3. **For each conflicting file:**
+   - Read the file with conflict markers
+   - Analyze both versions (HEAD vs incoming)
+   - Propose resolution based on semantic understanding
+   - Show diff of proposed resolution
+
+4. **Present resolution:**
+   ```
+   🤖 AI Conflict Resolution - <filename>
+
+      Conflict type: <description>
+
+      Proposed resolution:
+      <diff preview>
+
+      [1] Accept this resolution
+      [2] Show me both versions
+      [3] Let me resolve manually
+      [n] Next file
+   ```
+
+5. **After all files resolved:**
+   ```bash
+   git add -A
+   git commit -m "Resolve merge conflicts with <baseRefName>"
+   git push
+   ```
+
+6. **Confirm:**
+   ```
+   ✅ Conflicts resolved and pushed!
+
+      Files resolved: <N>
+      Commit: <sha>
+
+      [View PR] [Done]
+   ```
+
+**Manual fallback:**
+```
+Fetch and resolve locally:
+   git fetch origin <headRefName>
+   git checkout <headRefName>
+   git merge origin/<baseRefName>
+   # resolve conflicts
+   git add -A && git commit && git push
 ```
 
 ### Case C: Ready to Merge (🚀 state)

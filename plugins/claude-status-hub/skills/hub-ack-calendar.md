@@ -7,9 +7,10 @@ Handle calendar meeting alerts with time-aware contextual actions.
 Receives calendar item from dispatcher with:
 - `title` - meeting name
 - `startTime` - ISO timestamp or epoch ms
-- `meetingLink` - Google Meet/Zoom URL (if available)
+- `meetingLink` - Google Meet/Zoom URL (if available) - **always show full URL**
 - `organizer` - meeting organizer name/email
 - `tabId` - browser tab ID for calendar
+- `hasAttachments` - whether meeting has docs/prep materials
 
 ## Step 1: Calculate Time Context
 
@@ -20,24 +21,44 @@ const diffMinutes = Math.round((start - now) / 60000);
 ```
 
 Determine case:
-- **Case A**: `diffMinutes > 5` (meeting upcoming)
+- **Case A**: `diffMinutes > 5` (meeting upcoming) - **normally suppress these alerts**
 - **Case B**: `diffMinutes >= -5 && diffMinutes <= 5` (meeting starting now)
 - **Case C**: `diffMinutes < -5 && diffMinutes >= -30` (meeting started)
 - **Case D**: `diffMinutes < -30` (late ack, meeting may have ended)
+
+## Alert Threshold Policy
+
+**Default**: Only alert when `diffMinutes <= 5` (meeting imminent or started)
+
+**Exception - meetings with prep**:
+- If `hasAttachments: true` (meeting has docs) → alert at configured `alertWithDocsBefore` (default 10min)
+- Allows time to review materials before joining
+
+```javascript
+const shouldAlert = (
+  diffMinutes <= 5 ||  // Always alert when imminent
+  (item.hasAttachments && diffMinutes <= config.calendar.alertWithDocsBefore)
+);
+```
+
+This prevents noise from meetings 30+ minutes away while ensuring prep meetings get early notice.
 
 ## Step 2: Show Time-Appropriate Wizard
 
 ### Case A: Meeting Upcoming (> 5min before)
 
+**Note**: Only shown for meetings with prep materials (hasAttachments: true).
+
 ```
 📅 <title> (<time>) - in <N> minutes
    Organizer: <organizer>
+   📎 Has attachments to review
 
-   🔗 <meetingLink>
+   🔗 <full meetingLink URL>
 
    [1] Join meeting now (early)
    [2] Set reminder for 2 min before
-   [3] "Running 5 min late" → DM <organizer>
+   [3] DM <organizer>: "Hey! I'll be ~5 min late"
    [d] Dismiss
 ```
 
@@ -46,11 +67,11 @@ Determine case:
 ```
 📅 <title> - starting NOW
 
-   🔗 <meetingLink>
+   🔗 <full meetingLink URL>
 
    [1] Join meeting
-   [2] "5 min late" → DM <organizer>
-   [3] "10 min late" → DM <organizer>
+   [2] DM <organizer>: "Hey! Joining in about 5 minutes"
+   [3] DM <organizer>: "Running a bit behind, ~10 min"
    [c] Custom message to <organizer>...
    [d] Dismiss
 
@@ -62,11 +83,11 @@ Determine case:
 ```
 📅 <title> - started <N> minutes ago
 
-   🔗 <meetingLink>
+   🔗 <full meetingLink URL>
 
    [1] Join now (late)
-   [2] "Joining shortly" → DM <organizer>
-   [3] "Skip, catch up async" → DM <organizer>
+   [2] DM <organizer>: "On my way! Joining in a moment"
+   [3] DM <organizer>: "Won't make it - can we catch up async?"
    [d] Dismiss
 ```
 
@@ -79,7 +100,35 @@ Determine case:
       <context from session>
 
    [1] Dismiss
-   [2] "Sorry I missed it" → DM <organizer>
+   [2] DM <organizer>: "Sorry I missed this! Let me know if you need anything from me"
+```
+
+## Humanized Message Templates
+
+Use natural, friendly language for all DM messages:
+
+| Situation | Message |
+|-----------|---------|
+| ~5 min late | "Hey! I'll be joining in about 5 minutes" |
+| ~10 min late | "Running a bit behind, should be there in ~10 min" |
+| Joining shortly | "On my way! Joining in a moment" |
+| Can't make it | "Won't be able to make it - can we catch up async?" |
+| Missed meeting | "Sorry I missed this! Let me know if you need anything from me" |
+| Custom late | "Hey! I'll be a bit late - [user reason]" |
+
+These can be customized in config:
+```json
+{
+  "calendar": {
+    "lateMessages": {
+      "5min": "Hey! I'll be joining in about 5 minutes",
+      "10min": "Running a bit behind, should be there in ~10 min",
+      "joining": "On my way! Joining in a moment",
+      "skip": "Won't be able to make it - can we catch up async?",
+      "missed": "Sorry I missed this! Let me know if you need anything from me"
+    }
+  }
+}
 ```
 
 ## Step 3: Execute Selected Action

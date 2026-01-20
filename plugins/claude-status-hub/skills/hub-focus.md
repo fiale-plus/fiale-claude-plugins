@@ -146,6 +146,36 @@ Store focus state in config:
 }
 ```
 
+### Create Calendar Focus Block (Optional)
+
+Offer to block focus time in calendar:
+
+```
+📅 Block focus time in calendar?
+
+   This creates a "Focus Time" event others can see.
+
+   [1] Yes, create "🎯 Focus Time" event
+   [2] Yes, create "Busy" event (no details)
+   [n] No, don't block calendar
+```
+
+If user selects yes, create calendar event via browser:
+
+```javascript
+// Navigate to Google Calendar and create quick event
+// URL format: https://calendar.google.com/calendar/render?action=TEMPLATE&text=Focus%20Time&dates=<start>/<end>
+
+const startISO = new Date(startTime).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+const endISO = new Date(endTime).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+const title = encodeURIComponent('🎯 Focus Time');
+const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startISO}/${endISO}`;
+```
+
+Or use `mcp__claude-in-chrome__navigate` to open the quick-add URL.
+
+### Update Slack Status
+
 Update Slack status if configured (via browser tab):
 
 ```javascript
