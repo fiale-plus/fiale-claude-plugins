@@ -150,8 +150,37 @@ When user selects "Fix loop", enter an interactive cycle that stays in the foreg
    ```
 
 5. **Evaluate result:**
-   - **Passed** → 🎉 Exit loop, update config with `checksFailed: 0`
+   - **Passed** → 🎉 Exit loop, check if merge-ready (see below)
    - **Failed** → Show new failure, loop back to step 1
+
+**On CI pass - check merge readiness:**
+```bash
+gh pr view <number> --repo <owner>/<repo> --json reviewDecision,mergeable --jq '{reviewDecision, mergeable}'
+```
+
+If `reviewDecision == "APPROVED"` and `mergeable == "MERGEABLE"`:
+```
+🎉 CI Passed! PR #<number> is now merge-ready!
+
+   ✅ Fix worked: <commit message>
+   ✅ Approved by: @reviewer
+   ✅ No conflicts
+
+   [1] Post /aviator merge (configured default)
+   [2] Merge now (squash)
+   [3] Done - merge manually later
+```
+
+If still waiting for approval:
+```
+🎉 CI Passed! PR #<number> checks green.
+
+   ✅ Fix worked: <commit message>
+   ⏳ Waiting for approval
+
+   [1] Request review from @someone
+   [2] Done
+```
 
 **Loop UI:**
 ```
@@ -237,6 +266,63 @@ Enter custom command (use {number} for PR number):
 > [user input]
 
 [Execute] [Cancel]
+```
+
+### Proactive Merge on Unblock
+
+When a PR transitions to merge-ready (approval obtained OR checks go green), proactively offer to execute the configured merge strategy:
+
+**Trigger conditions:**
+- `reviewDecision` changed to `APPROVED` (was waiting for approval)
+- `checksFailed` changed from `> 0` to `0` (CI fixed)
+- AND all merge conditions now met (approved + checks pass + no conflicts)
+
+**Proactive wizard:**
+```
+🚀 PR #<number> is now merge-ready!
+
+   Just unblocked by: ✅ Approval from @reviewer
+   (or: ✅ CI now passing)
+
+   Your configured merge strategy: <strategy>
+
+   [1] Execute now → <merge command>
+   [2] Review PR first, then merge
+   [d] Dismiss (merge manually later)
+```
+
+**If strategy is "aviator" or "auto-merge":**
+```
+🚀 PR #<number> is now merge-ready!
+
+   Just unblocked by: ✅ CI now passing
+
+   [1] Post /aviator merge now (configured default)
+   [2] Enable auto-merge instead
+   [3] Merge immediately (squash)
+   [d] Dismiss
+```
+
+**Config for auto-post:**
+```json
+{
+  "github": {
+    "mergeStrategy": {
+      "default": "aviator",
+      "autoPostOnReady": true  // Auto-post merge command when unblocked
+    }
+  }
+}
+```
+
+When `autoPostOnReady: true`, skip the wizard and execute immediately:
+```
+🚀 PR #<number> merge-ready → Posted /aviator merge
+
+   Unblocked by: ✅ Approval from @reviewer
+   Action: Posted "/aviator merge" comment (configured auto-post)
+
+   [View PR] [Undo]
 ```
 
 ### Case D: Changes Requested (reviewDecision == "CHANGES_REQUESTED")
