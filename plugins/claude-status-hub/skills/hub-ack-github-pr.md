@@ -63,6 +63,7 @@ gh run list --repo <owner>/<repo> --branch main --limit 5 --json conclusion,name
    [2] Re-run full CI
    [3] Ask Claude to investigate and propose fix
    [4] View failure logs
+   [5] 🔄 Fix loop (stay in session until CI passes)
    [d] Dismiss
 ```
 
@@ -71,6 +72,7 @@ Actions:
 - **Re-run full**: `gh run rerun <run_id> --repo <owner>/<repo>`
 - **Investigate**: Read the failing test output and propose fix
 - **View logs**: `gh run view <run_id> --repo <owner>/<repo> --log-failed`
+- **Fix loop**: Enter interactive fix mode (see below)
 
 **After "Investigate fix" action:**
 When a fix is applied and pushed, update `lastSeen.checksFailed` to `0` (expected state).
@@ -105,6 +107,72 @@ gh pr view <number> --repo <owner>/<repo> --json statusCheckRollup --jq '.status
 ```
 
 See: https://buildkite.com/docs/apis/mcp-server
+
+### Fix Loop Mode
+
+When user selects "Fix loop", enter an interactive cycle that stays in the foreground until CI passes:
+
+```
+🔄 Fix Loop Mode - PR #<number>
+   Stay in session until CI passes. I'll help you iterate.
+
+   Current status: ❌ <check_name> failing
+```
+
+**Loop steps:**
+
+1. **Investigate** - Read failure logs and analyze
+   ```bash
+   gh run view <run_id> --repo <owner>/<repo> --log-failed
+   ```
+
+2. **Propose fix** - Suggest code changes based on failure
+
+3. **Apply & push** - After user approves:
+   ```bash
+   git add -A && git commit -m "<fix message>" && git push
+   ```
+
+4. **Wait for CI** - Poll for check status:
+   ```bash
+   # Poll every 30s until checks complete
+   while true; do
+     STATUS=$(gh pr view <number> --repo <owner>/<repo> --json statusCheckRollup --jq '
+       if ([.statusCheckRollup[] | select(.status == "IN_PROGRESS" or .status == "QUEUED" or .status == "PENDING")] | length) > 0 then "pending"
+       elif ([.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length) > 0 then "failed"
+       else "passed"
+       end
+     ')
+     echo "CI status: $STATUS"
+     [ "$STATUS" != "pending" ] && break
+     sleep 30
+   done
+   ```
+
+5. **Evaluate result:**
+   - **Passed** → 🎉 Exit loop, update config with `checksFailed: 0`
+   - **Failed** → Show new failure, loop back to step 1
+
+**Loop UI:**
+```
+🔄 Iteration 2 - PR #<number>
+
+   Previous fix: <commit message>
+   Result: ❌ Still failing
+
+   New failure analysis:
+   ...
+
+   [1] Apply suggested fix
+   [2] Try different approach
+   [3] Re-run CI (maybe flaky)
+   [x] Exit loop (keep tracking)
+```
+
+**Exit conditions:**
+- CI passes → Success, update `lastSeen.checksFailed: 0`
+- User exits → Keep `lastSeen.checksFailed` at current count (will alert on changes)
+- User dismisses → Set `lastSeen` to current state (no alert until new failure)
 
 ### Case B: Merge Conflicts (mergeable == "CONFLICTING")
 
