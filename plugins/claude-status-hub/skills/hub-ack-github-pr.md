@@ -72,6 +72,40 @@ Actions:
 - **Investigate**: Read the failing test output and propose fix
 - **View logs**: `gh run view <run_id> --repo <owner>/<repo> --log-failed`
 
+**After "Investigate fix" action:**
+When a fix is applied and pushed, update `lastSeen.checksFailed` to `0` (expected state).
+This way:
+- If CI passes → no alert (expected outcome)
+- If CI fails again → alert triggers (unexpected, needs attention)
+
+### Buildkite CI Support
+
+If the failing check is from Buildkite (check name contains "buildkite" or statusCheckRollup has Buildkite URLs), prefer the Buildkite MCP for richer interactions:
+
+**Detection:**
+```bash
+gh pr view <number> --repo <owner>/<repo> --json statusCheckRollup --jq '.statusCheckRollup[] | select(.conclusion == "FAILURE") | .detailsUrl' | grep -q buildkite
+```
+
+**If Buildkite MCP available** (`mcp__buildkite__*` tools):
+- **View logs**: `mcp__buildkite__get_job_logs` - richer output than gh CLI
+- **Rerun build**: `mcp__buildkite__retry_job` - direct Buildkite control
+- **Get build info**: `mcp__buildkite__get_build` - detailed build metadata
+
+**MCP setup**: Add to `.mcp.json`:
+```json
+{
+  "mcpServers": {
+    "buildkite": {
+      "type": "url",
+      "url": "https://mcp.buildkite.com/sse"
+    }
+  }
+}
+```
+
+See: https://buildkite.com/docs/apis/mcp-server
+
 ### Case B: Merge Conflicts (mergeable == "CONFLICTING")
 
 ```
@@ -190,8 +224,14 @@ Update the PR item's `lastSeen` with current values:
 - `commentsCount`
 - `state`
 - `reviewDecision`
-- `checksFailed`
+- `checksFailed` (set to `0` if fix was applied and pushed)
 - `mergeable`
+
+**Special case - fix applied:**
+If user chose "Investigate fix" and a fix was committed/pushed, set `lastSeen.checksFailed: 0`.
+This sets the "expected" state so:
+- CI passes → no new alert (expected)
+- CI fails → new alert (unexpected failure)
 
 Set `hasAlert: false` for this item.
 
