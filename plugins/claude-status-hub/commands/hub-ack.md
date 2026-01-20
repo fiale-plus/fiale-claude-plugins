@@ -1,18 +1,23 @@
 ---
 name: hub-ack
-description: Acknowledge hub alerts
+description: Acknowledge hub alerts with contextual actions
 argument-hint:
 ---
 
-# Hub Ack - Acknowledge Alerts
+# Hub Ack - Contextual Alert Actions
 
-Clear hub error state.
+Handle alerts with smart, context-aware actions.
 
 ## Action
 
-1. Delete the error file if it exists:
-   ```bash
-   ${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh --clear-error
-   ```
+Read and follow the hub-ack skill:
 
-2. Confirm: "Hub error cleared"
+```
+${CLAUDE_PLUGIN_ROOT}/skills/hub-ack.md
+```
+
+This skill will:
+1. Clear any error state
+2. Find items with alerts
+3. Present contextual action wizards
+4. Route to service-specific handlers (github-pr, calendar, slack, etc.)

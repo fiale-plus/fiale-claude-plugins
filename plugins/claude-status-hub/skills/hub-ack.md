@@ -1,0 +1,138 @@
+# Hub Ack - Contextual Action Dispatcher
+
+Handle alerts with context-aware actions. This skill is the main dispatcher that routes to service-specific ack skills.
+
+## Overview
+
+The `/hub-ack` paradigm:
+1. Alert appears in statusline (single line, non-blocking)
+2. User continues working
+3. User types `/hub-ack` when ready
+4. System evaluates: What alert? What time? What's possible?
+5. Smart wizard offers best actions for THIS moment
+
+## Step 1: Clear Any Error State
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh --clear-error
+```
+
+## Step 2: Read Current State
+
+Read the bridge file to find alerting items:
+
+```bash
+cat /tmp/status-hub.json
+```
+
+Extract:
+- `foreground[]` array with items that have `hasAlert: true`
+- `background` for music state (if any)
+
+## Step 3: Read Config for Context
+
+```bash
+cat ~/.claude/status-config.json
+```
+
+Get additional context:
+- `foreground[]` item details (owner, repo, number for PRs; tabId for browser items)
+- `github.mergeStrategy` for merge preferences
+- Service-specific settings
+
+## Step 4: Evaluate Alerts
+
+Check for items with `hasAlert: true` in the bridge file.
+
+**Priority order** (handle most urgent first):
+1. `github-pr` with CI failures (icon `X`)
+2. `github-pr` with conflicts (icon `⚡`)
+3. `github-pr` ready to merge (icon `🚀`)
+4. `calendar` meetings (time-sensitive)
+5. `slack` VIP messages
+6. `github-pr` with review activity
+7. Other alerts
+
+## Step 5: Route to Service-Specific Skill
+
+For each alerting item, check for a service-specific ack skill:
+
+1. **Built-in**: `${CLAUDE_PLUGIN_ROOT}/skills/hub-ack-<service>.md`
+2. **User-authored**: `${CLAUDE_PLUGIN_ROOT}/skills/hub-ack-<service>.user.md`
+
+Service mappings:
+- `github-pr` → `hub-ack-github-pr.md`
+- `calendar` → `hub-ack-calendar.md`
+- `slack` → `hub-ack-slack.md`
+- `jira` → `hub-ack-jira.md`
+- `finance` → Just dismiss (no contextual actions)
+
+If a skill exists, read and follow it for that item's ack actions.
+
+## Step 6: No Alerts Case
+
+If no items have `hasAlert: true`:
+
+```
+✓ No pending alerts
+
+Current status:
+<list foreground items with their current state>
+
+[r] Refresh status now
+[d] Done
+```
+
+## Step 7: Multiple Alerts
+
+If multiple items have alerts, present a selection:
+
+```
+📬 You have N alerts:
+
+[1] <icon> <service>: <brief description>
+[2] <icon> <service>: <brief description>
+...
+[a] Handle all sequentially
+[d] Dismiss all
+```
+
+Let user select which to handle, then route to the appropriate skill.
+
+## Step 8: Update Config After Ack
+
+After successfully handling an alert:
+1. Update `lastSeen` values in config
+2. Set `hasAlert: false` for the item
+3. Write updated config back
+
+```bash
+# After ack, refresh the bridge to reflect new state
+${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh ...
+```
+
+## AskUserQuestion Format
+
+Use AskUserQuestion for wizard interactions:
+
+```
+{
+  "questions": [{
+    "question": "<context and options>",
+    "header": "Hub Ack",
+    "options": [
+      {"label": "<action 1>", "description": "<what happens>"},
+      {"label": "<action 2>", "description": "<what happens>"},
+      {"label": "Dismiss", "description": "Mark as seen"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+## Error Handling
+
+If any tool call fails:
+1. Write error via update-bridge.sh --error
+2. Inform user of the failure
+3. Offer to retry or dismiss
