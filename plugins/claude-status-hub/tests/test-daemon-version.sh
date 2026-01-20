@@ -144,11 +144,14 @@ else
   kill "$FAKE_PID" 2>/dev/null || true
 fi
 
-# Cleanup
+# Cleanup - ensure all processes are fully terminated
 for pid in "${SPAWNED_PIDS[@]}"; do
   kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
 done
 SPAWNED_PIDS=()
+# Give the daemon's EXIT trap time to run and delete the lockfile
+sleep 1
 
 # --- Test 6: Corrupted lockfile handled gracefully ---
 echo ""
