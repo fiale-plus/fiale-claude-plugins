@@ -6,10 +6,14 @@ CONFIG="$HOME/.claude/status-config.json"
 BRIDGE="/tmp/status-hub.json"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
 
+# Pattern for continuous/eternal checks (merge services that run until triggered)
+# These are non-blocking - PR can be "ready" even while they run
+CONTINUOUS_CHECK_PATTERN="aviator|mergify|merge-when-ready"
+
 # Determine PR icon and detail based on state (priority: worst first)
 # Returns: "icon:detail"
 determine_pr_icon() {
-  local state=$1 is_draft=$2 review=$3 mergeable=$4 checks_failed=$5 checks_pending=$6
+  local state=$1 is_draft=$2 review=$3 mergeable=$4 checks_failed=$5 checks_pending=$6 checks_continuous=$7
 
   case "$state" in
     MERGED) echo "M:merged"; return ;;
@@ -26,6 +30,9 @@ determine_pr_icon() {
 
   # Ready to merge: approved + no failures + mergeable + not draft
   if [ "$review" = "APPROVED" ] && [ "$checks_failed" -eq 0 ] && [ "$mergeable" = "MERGEABLE" ] && [ "$is_draft" = "false" ]; then
+    if [ "$checks_continuous" -gt 0 ]; then
+      echo "🚀:ready ⏳${checks_continuous}"; return
+    fi
     echo "🚀:ready to merge"; return
   fi
 
@@ -37,10 +44,13 @@ determine_pr_icon() {
 # Returns: "true" or "false"
 detect_alert() {
   local comments_count=$1 last_comments=$2 review=$3 last_review=$4 state=$5 last_state=$6
+  local checks_pending=$7 last_checks_pending=$8
 
   [ "$comments_count" -gt "$last_comments" ] && { echo "true"; return; }
   [ "$review" != "$last_review" ] && [ -n "$last_review" ] && { echo "true"; return; }
   [ "$state" != "$last_state" ] && [ -n "$last_state" ] && { echo "true"; return; }
+  # Alert when blocking checks finish (transition from pending to ready)
+  [ "$checks_pending" -eq 0 ] && [ "$last_checks_pending" -gt 0 ] && { echo "true"; return; }
   echo "false"
 }
 
@@ -80,20 +90,25 @@ build_foreground() {
     mergeable=$(echo "$pr_data" | jq -r '.mergeable')
     comments_count=$(echo "$pr_data" | jq '.comments | length')
     checks_failed=$(echo "$pr_data" | jq '[.statusCheckRollup[]? | select(.conclusion == "FAILURE")] | length')
-    checks_pending=$(echo "$pr_data" | jq '[.statusCheckRollup[]? | select(.conclusion == null or .conclusion == "PENDING")] | length')
+    # Separate blocking checks from continuous/eternal checks (like Aviator)
+    checks_pending=$(echo "$pr_data" | jq --arg pattern "$CONTINUOUS_CHECK_PATTERN" \
+      '[.statusCheckRollup[]? | select(.conclusion == null or .conclusion == "PENDING") | select(.name | test($pattern; "i") | not)] | length')
+    checks_continuous=$(echo "$pr_data" | jq --arg pattern "$CONTINUOUS_CHECK_PATTERN" \
+      '[.statusCheckRollup[]? | select(.conclusion == null or .conclusion == "PENDING") | select(.name | test($pattern; "i"))] | length')
 
     # Get lastSeen from config for alert detection
     last_comments=$(echo "$pr_json" | jq -r '.lastSeen.commentsCount // 0')
     last_review=$(echo "$pr_json" | jq -r '.lastSeen.reviewDecision // ""')
     last_state=$(echo "$pr_json" | jq -r '.lastSeen.state // ""')
+    last_checks_pending=$(echo "$pr_json" | jq -r '.lastSeen.checksPending // 0')
 
     # Determine icon and detail
-    icon_detail=$(determine_pr_icon "$state" "$is_draft" "$review" "$mergeable" "$checks_failed" "$checks_pending")
+    icon_detail=$(determine_pr_icon "$state" "$is_draft" "$review" "$mergeable" "$checks_failed" "$checks_pending" "$checks_continuous")
     icon="${icon_detail%%:*}"
     detail="${icon_detail#*:}"
 
     # Detect alerts
-    has_alert=$(detect_alert "$comments_count" "$last_comments" "$review" "$last_review" "$state" "$last_state")
+    has_alert=$(detect_alert "$comments_count" "$last_comments" "$review" "$last_review" "$state" "$last_state" "$checks_pending" "$last_checks_pending")
 
     # Build JSON entry
     [ "$first" = "true" ] || result+=","
@@ -102,7 +117,7 @@ build_foreground() {
 
     # Collect lastSeen update for batch write
     [ -n "$updates" ] && updates+=" | "
-    updates+="(.foreground[] | select(.number == $number)) |= (.lastSeen = {commentsCount: $comments_count, reviewDecision: \"$review\", state: \"$state\"})"
+    updates+="(.foreground[] | select(.number == $number)) |= (.lastSeen = {commentsCount: $comments_count, reviewDecision: \"$review\", state: \"$state\", checksPending: $checks_pending})"
 
   done < <(jq -c '.foreground[] | select(.owner)' "$CONFIG" 2>/dev/null)
 

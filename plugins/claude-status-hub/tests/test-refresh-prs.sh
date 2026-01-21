@@ -91,18 +91,74 @@ create_mock_gh() {
       for i in $(seq 1 $checks_failed); do
         [ "$first" = "false" ] && checks_arr+=","
         first=false
-        checks_arr+='{"conclusion": "FAILURE"}'
+        checks_arr+='{"name": "ci-'$i'", "conclusion": "FAILURE"}'
       done
     fi
     if [ "$checks_pending" -gt 0 ]; then
       for i in $(seq 1 $checks_pending); do
         [ "$first" = "false" ] && checks_arr+=","
         first=false
-        checks_arr+='{"conclusion": null}'
+        checks_arr+='{"name": "ci-pending-'$i'", "conclusion": null}'
       done
     fi
     checks_arr+="]"
   fi
+
+  cat > "$MOCK_BIN/gh" << EOF
+#!/bin/bash
+# Mock gh command
+cat << 'ENDJSON'
+{
+  "state": "$pr_state",
+  "isDraft": $is_draft,
+  "reviewDecision": "$review",
+  "mergeable": "$mergeable",
+  "comments": $comments_arr,
+  "statusCheckRollup": $checks_arr
+}
+ENDJSON
+EOF
+  chmod +x "$MOCK_BIN/gh"
+}
+
+# Create mock gh with named checks (for testing continuous check detection)
+create_mock_gh_with_checks() {
+  local pr_state="$1"
+  local is_draft="$2"
+  local review="$3"
+  local mergeable="$4"
+  local comments="$5"
+  shift 5
+  # Remaining args are check specs: "name:conclusion" (conclusion can be SUCCESS, FAILURE, or null)
+
+  # Build comments array
+  local comments_arr="[]"
+  if [ "$comments" -gt 0 ]; then
+    comments_arr="["
+    local first_comment=true
+    for i in $(seq 1 $comments); do
+      [ "$first_comment" = "false" ] && comments_arr+=","
+      first_comment=false
+      comments_arr+="{}"
+    done
+    comments_arr+="]"
+  fi
+
+  # Build statusCheckRollup array from check specs
+  local checks_arr="["
+  local first=true
+  for spec in "$@"; do
+    local name="${spec%%:*}"
+    local conclusion="${spec#*:}"
+    [ "$first" = "false" ] && checks_arr+=","
+    first=false
+    if [ "$conclusion" = "null" ]; then
+      checks_arr+="{\"name\": \"$name\", \"conclusion\": null}"
+    else
+      checks_arr+="{\"name\": \"$name\", \"conclusion\": \"$conclusion\"}"
+    fi
+  done
+  checks_arr+="]"
 
   cat > "$MOCK_BIN/gh" << EOF
 #!/bin/bash
@@ -126,6 +182,7 @@ setup_config() {
   local last_comments="${1:-0}"
   local last_review="${2:-}"
   local last_state="${3:-}"
+  local last_checks_pending="${4:-0}"
 
   cat > "$CONFIG" << EOF
 {
@@ -137,7 +194,8 @@ setup_config() {
       "lastSeen": {
         "commentsCount": $last_comments,
         "reviewDecision": "$last_review",
-        "state": "$last_state"
+        "state": "$last_state",
+        "checksPending": $last_checks_pending
       }
     }
   ]
@@ -264,6 +322,90 @@ else
 fi
 
 echo ""
+echo "Testing continuous check handling..."
+
+# Test Aviator running (continuous check) with all other checks passed → 🚀 with ⏳
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config 0 "" ""
+create_mock_gh_with_checks "OPEN" "false" "APPROVED" "MERGEABLE" 0 \
+  "build:SUCCESS" "test:SUCCESS" "aviator/merge-queue:null"
+run_refresh
+icon=$(jq -r '.foreground[0].icon' "$BRIDGE")
+detail=$(jq -r '.foreground[0].detail' "$BRIDGE")
+if [ "$icon" = "🚀" ] && [[ "$detail" == *"⏳1"* ]]; then
+  pass "Aviator running → 🚀 with ⏳1"
+else
+  fail "Aviator continuous check" "🚀 with ⏳1" "$icon / $detail"
+fi
+
+# Test Mergify running (continuous check) → 🚀 with ⏳
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config 0 "" ""
+create_mock_gh_with_checks "OPEN" "false" "APPROVED" "MERGEABLE" 0 \
+  "ci:SUCCESS" "mergify/merge-queue:null"
+run_refresh
+icon=$(jq -r '.foreground[0].icon' "$BRIDGE")
+detail=$(jq -r '.foreground[0].detail' "$BRIDGE")
+if [ "$icon" = "🚀" ] && [[ "$detail" == *"⏳1"* ]]; then
+  pass "Mergify running → 🚀 with ⏳1"
+else
+  fail "Mergify continuous check" "🚀 with ⏳1" "$icon / $detail"
+fi
+
+# Test regular pending check (not continuous) → ~ (checks pending)
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config 0 "" ""
+create_mock_gh_with_checks "OPEN" "false" "APPROVED" "MERGEABLE" 0 \
+  "build:SUCCESS" "test:null"
+run_refresh
+icon=$(jq -r '.foreground[0].icon' "$BRIDGE")
+if [ "$icon" = "~" ]; then
+  pass "Regular pending check → ~ icon"
+else
+  fail "Regular pending check" "~" "$icon"
+fi
+
+# Test mixed: regular pending + continuous → ~ (blocking takes priority)
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config 0 "" ""
+create_mock_gh_with_checks "OPEN" "false" "APPROVED" "MERGEABLE" 0 \
+  "build:null" "aviator/queue:null"
+run_refresh
+icon=$(jq -r '.foreground[0].icon' "$BRIDGE")
+if [ "$icon" = "~" ]; then
+  pass "Mixed pending (regular + continuous) → ~ icon"
+else
+  fail "Mixed pending checks" "~" "$icon"
+fi
+
+# Test multiple continuous checks → 🚀 with ⏳2
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config 0 "" ""
+create_mock_gh_with_checks "OPEN" "false" "APPROVED" "MERGEABLE" 0 \
+  "build:SUCCESS" "aviator/merge-queue:null" "mergify/queue:null"
+run_refresh
+icon=$(jq -r '.foreground[0].icon' "$BRIDGE")
+detail=$(jq -r '.foreground[0].detail' "$BRIDGE")
+if [ "$icon" = "🚀" ] && [[ "$detail" == *"⏳2"* ]]; then
+  pass "Multiple continuous checks → 🚀 with ⏳2"
+else
+  fail "Multiple continuous checks" "🚀 with ⏳2" "$icon / $detail"
+fi
+
+# Test continuous check + failed blocking → X (failure takes priority)
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config 0 "" ""
+create_mock_gh_with_checks "OPEN" "false" "APPROVED" "MERGEABLE" 0 \
+  "build:FAILURE" "aviator/merge-queue:null"
+run_refresh
+icon=$(jq -r '.foreground[0].icon' "$BRIDGE")
+if [ "$icon" = "X" ]; then
+  pass "Continuous + failed blocking → X icon"
+else
+  fail "Continuous with failure" "X" "$icon"
+fi
+
+echo ""
 echo "Testing alert detection..."
 
 # Test new comment triggers alert
@@ -312,6 +454,31 @@ if [ "$has_alert" = "false" ]; then
   pass "No changes = no alert"
 else
   fail "No changes alert" "false" "$has_alert"
+fi
+
+# Test blocking checks finishing triggers alert
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config 0 "APPROVED" "OPEN" 2  # lastSeen had 2 pending checks
+create_mock_gh "OPEN" "false" "APPROVED" "MERGEABLE" 0 0 0  # Now 0 pending
+run_refresh
+has_alert=$(jq -r '.foreground[0].hasAlert' "$BRIDGE")
+if [ "$has_alert" = "true" ]; then
+  pass "Blocking checks finishing triggers alert"
+else
+  fail "Checks finish alert" "true" "$has_alert"
+fi
+
+# Test continuous checks don't trigger alert when they're the only ones pending
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config 0 "APPROVED" "OPEN" 0  # lastSeen had 0 blocking pending
+create_mock_gh_with_checks "OPEN" "false" "APPROVED" "MERGEABLE" 0 \
+  "build:SUCCESS" "aviator/queue:null"  # Aviator still pending (continuous)
+run_refresh
+has_alert=$(jq -r '.foreground[0].hasAlert' "$BRIDGE")
+if [ "$has_alert" = "false" ]; then
+  pass "Continuous check alone = no alert"
+else
+  fail "Continuous check alert" "false" "$has_alert"
 fi
 
 echo ""
