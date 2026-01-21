@@ -10,6 +10,47 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
 # These are non-blocking - PR can be "ready" even while they run
 CONTINUOUS_CHECK_PATTERN="aviator|mergify|merge-when-ready"
 
+# Log file for auto-merge actions
+LOG_FILE="$HOME/.claude/status-hub.log"
+
+# Resolve merge strategy for a repo (priority: repos > orgs > default)
+resolve_merge_strategy() {
+  local owner=$1 repo=$2
+  local strategy
+
+  # Priority: repos > orgs > default
+  strategy=$(jq -r ".github.mergeStrategy.repos[\"$owner/$repo\"] // empty" "$CONFIG" 2>/dev/null)
+  [ -z "$strategy" ] && strategy=$(jq -r ".github.mergeStrategy.orgs[\"$owner\"] // empty" "$CONFIG" 2>/dev/null)
+  [ -z "$strategy" ] && strategy=$(jq -r '.github.mergeStrategy.default // "squash"' "$CONFIG" 2>/dev/null)
+
+  echo "${strategy:-squash}"
+}
+
+# Execute auto-merge for a PR
+execute_auto_merge() {
+  local owner=$1 repo=$2 number=$3
+  local strategy=$(resolve_merge_strategy "$owner" "$repo")
+  local result
+
+  case "$strategy" in
+    squash)       result=$(gh pr merge "$number" --repo "$owner/$repo" --squash 2>&1) ;;
+    rebase)       result=$(gh pr merge "$number" --repo "$owner/$repo" --rebase 2>&1) ;;
+    merge-commit) result=$(gh pr merge "$number" --repo "$owner/$repo" --merge 2>&1) ;;
+    aviator)      result=$(gh pr comment "$number" --repo "$owner/$repo" --body "/aviator merge" 2>&1) ;;
+    *)            # Check customCommands
+                  custom=$(jq -r ".github.mergeStrategy.customCommands[\"$owner/$repo\"] // empty" "$CONFIG" 2>/dev/null)
+                  if [ -n "$custom" ]; then
+                    result=$(eval "${custom//\{number\}/$number}" 2>&1)
+                  else
+                    result="Unknown strategy: $strategy"
+                  fi
+                  ;;
+  esac
+
+  # Log the action
+  echo "$(date -Iseconds) AUTO_MERGE $owner/$repo#$number via $strategy: ${result:0:100}" >> "$LOG_FILE"
+}
+
 # Determine PR icon and detail based on state (priority: worst first)
 # Returns: "icon:detail"
 determine_pr_icon() {
@@ -102,6 +143,9 @@ build_foreground() {
     last_state=$(echo "$pr_json" | jq -r '.lastSeen.state // ""')
     last_checks_pending=$(echo "$pr_json" | jq -r '.lastSeen.checksPending // 0')
 
+    # Get autoMerge flag for this PR
+    auto_merge=$(echo "$pr_json" | jq -r '.autoMerge // false')
+
     # Determine icon and detail
     icon_detail=$(determine_pr_icon "$state" "$is_draft" "$review" "$mergeable" "$checks_failed" "$checks_pending" "$checks_continuous")
     icon="${icon_detail%%:*}"
@@ -110,10 +154,23 @@ build_foreground() {
     # Detect alerts
     has_alert=$(detect_alert "$comments_count" "$last_comments" "$review" "$last_review" "$state" "$last_state" "$checks_pending" "$last_checks_pending")
 
-    # Build JSON entry
+    # Auto-merge: execute when PR transitions to ready state
+    if [ "$auto_merge" = "true" ] && [[ "$icon" == "🚀"* ]]; then
+      # Check if this is a NEW transition to ready (was pending or not approved)
+      is_transition="false"
+      [ "$last_checks_pending" -gt 0 ] && is_transition="true"
+      [ "$last_review" != "APPROVED" ] && [ -n "$last_review" ] && is_transition="true"
+      [ -z "$last_review" ] && is_transition="true"
+
+      if [ "$is_transition" = "true" ]; then
+        execute_auto_merge "$owner" "$repo" "$number"
+      fi
+    fi
+
+    # Build JSON entry (include autoMerge flag for statusline indicator)
     [ "$first" = "true" ] || result+=","
     first=false
-    result+="{\"site\":\"github-pr\",\"icon\":\"$icon\",\"title\":\"PR #$number\",\"detail\":\"$detail\",\"hasAlert\":$has_alert}"
+    result+="{\"site\":\"github-pr\",\"icon\":\"$icon\",\"title\":\"PR #$number\",\"detail\":\"$detail\",\"hasAlert\":$has_alert,\"autoMerge\":$auto_merge}"
 
     # Collect lastSeen update for batch write
     [ -n "$updates" ] && updates+=" | "

@@ -25,3 +25,6 @@ yarn-error.log
 # Local files
 .claude/
 .mcp.json
+
+# Worktrees
+.worktrees/

@@ -252,8 +252,10 @@ if [ -f "$BRIDGE_FILE" ]; then
     fi
   elif [ "$HAS_ALERT" = "true" ] && [ "$FG_COUNT" -gt 0 ]; then
     # ALERT STATE: foreground expanded, background compact
-    FG_DATA=$(echo "$BRIDGE_CONTENT" | jq -r '([.foreground[] | select(.hasAlert == true)][0] // {}) | [.icon, .title, .detail] | @tsv')
-    IFS=$'\t' read -r FG_ICON FG_TITLE FG_DETAIL <<< "$FG_DATA"
+    FG_DATA=$(echo "$BRIDGE_CONTENT" | jq -r '([.foreground[] | select(.hasAlert == true)][0] // {}) | [.icon, .title, .detail, (.autoMerge // false | tostring)] | @tsv')
+    IFS=$'\t' read -r FG_ICON FG_TITLE FG_DETAIL FG_AUTO <<< "$FG_DATA"
+    # Append 🔁 indicator if autoMerge is enabled
+    [ "$FG_AUTO" = "true" ] && FG_ICON="${FG_ICON}🔁"
     FOREGROUND_PART=" ${DIM}›${RESET} ${RED}${FG_ICON} ${FG_TITLE} ${FG_DETAIL}${RESET}"
     if [ -n "$BG_SITE" ] && [ -n "$BG_ICON" ]; then
       BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON}${RESET}"
@@ -265,11 +267,17 @@ if [ -f "$BRIDGE_FILE" ]; then
     fi
     if [ "$FG_COUNT" -gt 0 ]; then
       PR_COUNT=$(echo "$BRIDGE_CONTENT" | jq -r '[.foreground[] | select(.site == "github-pr")] | length')
+      PR_AUTO_COUNT=$(echo "$BRIDGE_CONTENT" | jq -r '[.foreground[] | select(.site == "github-pr" and .autoMerge == true)] | length')
       OTHER_COUNT=$((FG_COUNT - PR_COUNT))
       FG_PARTS=""
       if [ "$PR_COUNT" -gt 0 ]; then
         PR_LABEL="PRs"; [ "$PR_COUNT" = "1" ] && PR_LABEL="PR"
-        FG_PARTS="${PR_COUNT} ${PR_LABEL}"
+        # Show 🔁 indicator if any PRs have autoMerge enabled
+        if [ "$PR_AUTO_COUNT" -gt 0 ]; then
+          FG_PARTS="${PR_COUNT}🔁 ${PR_LABEL}"
+        else
+          FG_PARTS="${PR_COUNT} ${PR_LABEL}"
+        fi
       fi
       if [ "$OTHER_COUNT" -gt 0 ]; then
         OTHER_DATA=$(echo "$BRIDGE_CONTENT" | jq -r '([.foreground[] | select(.site != "github-pr")][0] // {}) | [.icon // "•", .title // "", .detail // ""] | @tsv')
