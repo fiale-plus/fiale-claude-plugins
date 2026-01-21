@@ -175,6 +175,20 @@ Handle config files carefully - **never lose user data**:
 
 - Clear stale errors: `rm -f /tmp/status-hub-error.txt`
 
+#### Legacy Daemon Cleanup
+
+Old daemons (pre-v1.0.4) don't have auto-death and will run forever. Detect and kill them:
+
+1. Read `/tmp/status-hub-daemon.lock` if it exists
+2. Check the format:
+   - **New format**: `VERSION:PID` (e.g., `1.0.4:12345`) - has auto-death, leave alone
+   - **Old format**: just `PID` (e.g., `12345`) - needs cleanup
+3. If old format (content matches `^[0-9]+$` with no colon):
+   - Kill the process with `kill -9 <pid>` (regular `kill` doesn't work on these)
+   - Remove the lockfile: `rm -f /tmp/status-hub-daemon.lock`
+   - Track that cleanup happened for the confirmation message
+4. The new daemon will spawn automatically via SessionStart hook
+
 ### Step 9: Confirm Setup
 
 Say:
@@ -182,6 +196,7 @@ Say:
 Status Hub configured!
 
 Base prompt: <describe what was preserved or "default">
+<if legacy daemon was killed: "Cleaned up legacy daemon (pre-auto-death version)">
 
 Your statusline will now show:
 - Git branch and dirty state
