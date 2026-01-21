@@ -124,6 +124,17 @@ Per-org/repo merge strategy configuration.
 | `aviator` | `gh pr comment --body "/aviator merge"` |
 | custom | Defined in `customCommands` |
 
+### Continuous Check Handling
+
+Merge services like Aviator and Mergify run checks that stay pending until triggered (e.g., `/aviator merge`). These "continuous" or "eternal" checks are detected by name pattern and excluded from the blocking check count.
+
+**Built-in patterns**: `aviator`, `mergify`, `merge-when-ready` (case-insensitive)
+
+**Behavior**:
+- When all blocking checks pass but continuous checks are running: shows `🚀:ready ⏳1`
+- Alerts trigger when blocking checks finish (transition from `~` to `🚀`)
+- Continuous checks don't prevent "ready to merge" status
+
 ### calendar
 
 Browser-based calendar integration via Chrome MCP.
@@ -178,6 +189,7 @@ Array of monitored items. Each item type has specific fields:
     "state": "OPEN",
     "reviewDecision": "APPROVED",
     "checksFailed": 0,
+    "checksPending": 0,
     "mergeable": "MERGEABLE"
   },
   "hasAlert": false
