@@ -62,6 +62,7 @@ Extract:
 - `background.service` (youtube-music, spotify, or null)
 - `background.tabId` (browser tab ID)
 - `foreground[]` array (PRs, Slack workspaces, etc.)
+- `calendar` config (connection type, tabId, alert thresholds)
 
 ## Step 2: Refresh Background (Music)
 
@@ -88,6 +89,23 @@ If `background.service` exists and has a `tabId`:
 
 Icon: `▶` if playing, `⏸` if paused.
 
+## Step 2.5: Refresh Calendar (if enabled)
+
+Check if calendar is configured:
+```javascript
+if (config.calendar && config.calendar.connection === "chrome" && config.calendar.chrome?.tabId) {
+  // Calendar is enabled, refresh it
+}
+```
+
+If calendar is enabled:
+1. Read and follow `${CLAUDE_PLUGIN_ROOT}/skills/hub-refresh-calendar.md`
+2. The calendar skill will return a foreground item to add to the bridge
+
+If calendar refresh fails (tab not found, etc.):
+- Log error but continue with other refreshes
+- Don't add calendar to foreground items
+
 ## Step 3: Refresh Foreground Items
 
 For each item in `foreground[]`:
@@ -104,8 +122,9 @@ If found, read and follow that skill for this item's refresh logic.
 
 If no custom skill exists, use the built-in logic based on item type:
 
-### Calendar (items with `.service == "calendar"`)
+### Calendar
 
+Calendar is handled separately in Step 2.5 (not in foreground[] array).
 See `hub-refresh-calendar.md` for browser-based calendar refresh via Chrome MCP.
 
 ### GitHub PRs (items with `.owner` field)
