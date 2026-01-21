@@ -61,6 +61,40 @@ docs/config-schema.md             # Config reference
 
 ---
 
+## v1.1.2 - Auto-Merge
+
+**Focus**: Automatic merge execution when PR becomes ready
+
+### Features
+
+- **Per-PR Auto-Merge Flag**
+  - Set `autoMerge: true` on tracked PR items
+  - Daemon executes merge strategy when PR transitions to ready
+  - Statusline shows `🔁` indicator for auto-merge PRs
+
+- **Transition Detection**
+  - Triggers on: checks passing, approval received
+  - Does NOT trigger if already ready (no duplicate merges)
+
+- **Logging**
+  - Actions logged to `~/.claude/status-hub.log`
+
+### Config Example
+```json
+{
+  "foreground": [
+    {
+      "owner": "acme",
+      "repo": "app",
+      "number": 123,
+      "autoMerge": true
+    }
+  ]
+}
+```
+
+---
+
 ## v1.2.0 - Calendar Integration
 
 **Focus**: Meeting alerts with time-aware wizards

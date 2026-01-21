@@ -506,6 +506,172 @@ else
 fi
 
 echo ""
+echo "Testing auto-merge functionality..."
+
+# Helper: Setup config with autoMerge flag
+setup_config_with_automerge() {
+  local last_comments="${1:-0}"
+  local last_review="${2:-}"
+  local last_state="${3:-}"
+  local last_checks_pending="${4:-0}"
+  local auto_merge="${5:-false}"
+
+  cat > "$CONFIG" << EOF
+{
+  "foreground": [
+    {
+      "owner": "test",
+      "repo": "repo",
+      "number": 1,
+      "autoMerge": $auto_merge,
+      "lastSeen": {
+        "commentsCount": $last_comments,
+        "reviewDecision": "$last_review",
+        "state": "$last_state",
+        "checksPending": $last_checks_pending
+      }
+    }
+  ],
+  "github": {
+    "mergeStrategy": {
+      "default": "squash"
+    }
+  }
+}
+EOF
+}
+
+# Helper: Setup merge strategy config for resolution tests
+setup_merge_config() {
+  local strategy_json="$1"
+  cat > "$CONFIG" << EOF
+{
+  "foreground": [
+    {
+      "owner": "test",
+      "repo": "repo",
+      "number": 1,
+      "autoMerge": false,
+      "lastSeen": {}
+    }
+  ],
+  "github": {
+    "mergeStrategy": $strategy_json
+  }
+}
+EOF
+}
+
+# Helper: Create mock gh that tracks merge calls
+create_mock_gh_tracking() {
+  local pr_state="$1"
+  local is_draft="$2"
+  local review="$3"
+  local mergeable="$4"
+  local calls_dir="$MOCK_BIN/calls"
+
+  mkdir -p "$calls_dir"
+  rm -f "$calls_dir/"* 2>/dev/null
+
+  cat > "$MOCK_BIN/gh" << EOF
+#!/bin/bash
+# Track the command
+echo "\$@" >> "$calls_dir/gh-calls.log"
+if [[ "\$1" == "pr" && "\$2" == "merge" ]]; then
+  touch "$calls_dir/gh-merge"
+  echo "Merged"
+  exit 0
+fi
+if [[ "\$1" == "pr" && "\$2" == "comment" ]]; then
+  touch "$calls_dir/gh-comment"
+  echo "Comment posted"
+  exit 0
+fi
+if [[ "\$1" == "pr" && "\$2" == "view" ]]; then
+cat << 'ENDJSON'
+{
+  "state": "$pr_state",
+  "isDraft": $is_draft,
+  "reviewDecision": "$review",
+  "mergeable": "$mergeable",
+  "comments": [],
+  "statusCheckRollup": []
+}
+ENDJSON
+fi
+EOF
+  chmod +x "$MOCK_BIN/gh"
+}
+
+# Test: autoMerge flag included in bridge output
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config_with_automerge 0 "" "" 0 true
+create_mock_gh "OPEN" "false" "APPROVED" "MERGEABLE" 0 0 0
+run_refresh
+auto_merge=$(jq -r '.foreground[0].autoMerge' "$BRIDGE")
+if [ "$auto_merge" = "true" ]; then
+  pass "autoMerge flag in bridge output"
+else
+  fail "autoMerge in bridge" "true" "$auto_merge"
+fi
+
+# Test: autoMerge=false also in bridge output
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config_with_automerge 0 "" "" 0 false
+create_mock_gh "OPEN" "false" "APPROVED" "MERGEABLE" 0 0 0
+run_refresh
+auto_merge=$(jq -r '.foreground[0].autoMerge' "$BRIDGE")
+if [ "$auto_merge" = "false" ]; then
+  pass "autoMerge=false in bridge output"
+else
+  fail "autoMerge false in bridge" "false" "$auto_merge"
+fi
+
+# Test: transition from pending → ready triggers auto-merge
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config_with_automerge 0 "APPROVED" "OPEN" 2 true  # was pending
+create_mock_gh_tracking "OPEN" "false" "APPROVED" "MERGEABLE"
+run_refresh
+if [ -f "$MOCK_BIN/calls/gh-merge" ]; then
+  pass "Auto-merge triggered on checks passing"
+else
+  fail "Auto-merge on checks pass" "gh merge called" "not called"
+fi
+
+# Test: transition from not-approved → approved triggers auto-merge
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config_with_automerge 0 "" "OPEN" 0 true  # was not approved
+create_mock_gh_tracking "OPEN" "false" "APPROVED" "MERGEABLE"
+run_refresh
+if [ -f "$MOCK_BIN/calls/gh-merge" ]; then
+  pass "Auto-merge triggered on approval"
+else
+  fail "Auto-merge on approval" "gh merge called" "not called"
+fi
+
+# Test: already ready + autoMerge does NOT trigger (no transition)
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config_with_automerge 0 "APPROVED" "OPEN" 0 true  # was already ready
+create_mock_gh_tracking "OPEN" "false" "APPROVED" "MERGEABLE"
+run_refresh
+if [ ! -f "$MOCK_BIN/calls/gh-merge" ]; then
+  pass "No auto-merge when already ready"
+else
+  fail "No auto-merge already ready" "gh merge NOT called" "was called"
+fi
+
+# Test: transition to ready but autoMerge:false does NOT trigger
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config_with_automerge 0 "APPROVED" "OPEN" 2 false  # autoMerge disabled
+create_mock_gh_tracking "OPEN" "false" "APPROVED" "MERGEABLE"
+run_refresh
+if [ ! -f "$MOCK_BIN/calls/gh-merge" ]; then
+  pass "No auto-merge when disabled"
+else
+  fail "No auto-merge when disabled" "gh merge NOT called" "was called"
+fi
+
+echo ""
 echo "=== Results ==="
 echo "Tests run: $TESTS_RUN"
 echo "Passed: $TESTS_PASSED"

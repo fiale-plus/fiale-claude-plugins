@@ -135,6 +135,25 @@ Merge services like Aviator and Mergify run checks that stay pending until trigg
 - Alerts trigger when blocking checks finish (transition from `~` to `🚀`)
 - Continuous checks don't prevent "ready to merge" status
 
+### Auto-Merge
+
+PRs can be configured for automatic merging when they become ready. Set `autoMerge: true` on a foreground PR item.
+
+**When autoMerge is enabled:**
+- The statusline shows `🔁` indicator (e.g., `🚀🔁` or `2🔁 PRs`)
+- When PR transitions to ready state (approved + checks pass + mergeable), the configured merge strategy executes automatically
+- Actions are logged to `~/.claude/status-hub.log`
+
+**Transition triggers:**
+- Blocking checks finish (pending → passing)
+- Review decision changes to APPROVED
+
+**No auto-merge if:**
+- PR is already in ready state (no transition)
+- `autoMerge: false` or not set
+
+**Strategy resolution:** Uses `github.mergeStrategy` config (repos > orgs > default)
+
 ### calendar
 
 Browser-based calendar integration via Chrome MCP.
@@ -184,6 +203,7 @@ Array of monitored items. Each item type has specific fields:
   "owner": "acme-corp",
   "repo": "my-project",
   "number": 123,
+  "autoMerge": true,
   "lastSeen": {
     "commentsCount": 5,
     "state": "OPEN",

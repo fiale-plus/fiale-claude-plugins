@@ -377,27 +377,27 @@ When a PR transitions to merge-ready (approval obtained OR checks go green), pro
    [d] Dismiss
 ```
 
-**Config for auto-post:**
+**Per-PR auto-merge:**
+
+Auto-merge is configured per-PR via `autoMerge: true` in the foreground config item. When enabled:
+- The daemon executes the merge strategy automatically when PR transitions to ready
+- Statusline shows `🔁` indicator (e.g., `🚀🔁`)
+- Actions logged to `~/.claude/status-hub.log`
+
 ```json
 {
-  "github": {
-    "mergeStrategy": {
-      "default": "aviator",
-      "autoPostOnReady": true  // Auto-post merge command when unblocked
+  "foreground": [
+    {
+      "owner": "acme",
+      "repo": "app",
+      "number": 123,
+      "autoMerge": true
     }
-  }
+  ]
 }
 ```
 
-When `autoPostOnReady: true`, skip the wizard and execute immediately:
-```
-🚀 PR #<number> merge-ready → Posted /aviator merge
-
-   Unblocked by: ✅ Approval from @reviewer
-   Action: Posted "/aviator merge" comment (configured auto-post)
-
-   [View PR] [Undo]
-```
+When auto-merge executes, the PR state updates to MERGED on next refresh.
 
 ### Case D: Changes Requested (reviewDecision == "CHANGES_REQUESTED")
 
