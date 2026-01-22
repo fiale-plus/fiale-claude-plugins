@@ -142,6 +142,7 @@ build_foreground() {
     last_review=$(echo "$pr_json" | jq -r '.lastSeen.reviewDecision // ""')
     last_state=$(echo "$pr_json" | jq -r '.lastSeen.state // ""')
     last_checks_pending=$(echo "$pr_json" | jq -r '.lastSeen.checksPending // 0')
+    last_auto_merge_attempted=$(echo "$pr_json" | jq -r '.lastSeen.autoMergeAttempted // false')
 
     # Get autoMerge flag for this PR
     auto_merge=$(echo "$pr_json" | jq -r '.autoMerge // false')
@@ -154,17 +155,12 @@ build_foreground() {
     # Detect alerts
     has_alert=$(detect_alert "$comments_count" "$last_comments" "$review" "$last_review" "$state" "$last_state" "$checks_pending" "$last_checks_pending")
 
-    # Auto-merge: execute when PR transitions to ready state
-    if [ "$auto_merge" = "true" ] && [[ "$icon" == "🚀"* ]]; then
-      # Check if this is a NEW transition to ready (was pending or not approved)
-      is_transition="false"
-      [ "$last_checks_pending" -gt 0 ] && is_transition="true"
-      [ "$last_review" != "APPROVED" ] && [ -n "$last_review" ] && is_transition="true"
-      [ -z "$last_review" ] && is_transition="true"
-
-      if [ "$is_transition" = "true" ]; then
-        execute_auto_merge "$owner" "$repo" "$number"
-      fi
+    # Auto-merge: execute when PR is ready and we haven't attempted yet
+    # This handles both: (1) transitions to ready, (2) PR already ready when autoMerge enabled
+    auto_merge_attempted="false"
+    if [ "$auto_merge" = "true" ] && [[ "$icon" == "🚀"* ]] && [ "$last_auto_merge_attempted" != "true" ]; then
+      execute_auto_merge "$owner" "$repo" "$number"
+      auto_merge_attempted="true"
     fi
 
     # Build JSON entry (include autoMerge flag for statusline indicator)
@@ -173,8 +169,9 @@ build_foreground() {
     result+="{\"site\":\"github-pr\",\"icon\":\"$icon\",\"title\":\"PR #$number\",\"detail\":\"$detail\",\"hasAlert\":$has_alert,\"autoMerge\":$auto_merge}"
 
     # Collect lastSeen update for batch write
+    # Include autoMergeAttempted to track if we've tried auto-merge for ready PRs
     [ -n "$updates" ] && updates+=" | "
-    updates+="(.foreground[] | select(.number == $number)) |= (.lastSeen = {commentsCount: $comments_count, reviewDecision: \"$review\", state: \"$state\", checksPending: $checks_pending})"
+    updates+="(.foreground[] | select(.number == $number)) |= (.lastSeen = {commentsCount: $comments_count, reviewDecision: \"$review\", state: \"$state\", checksPending: $checks_pending, autoMergeAttempted: $auto_merge_attempted})"
 
   done < <(jq -c '.foreground[] | select(.owner)' "$CONFIG" 2>/dev/null)
 
