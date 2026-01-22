@@ -141,16 +141,14 @@ PRs can be configured for automatic merging when they become ready. Set `autoMer
 
 **When autoMerge is enabled:**
 - The statusline shows `🔁` indicator (e.g., `🚀🔁` or `2🔁 PRs`)
-- When PR transitions to ready state (approved + checks pass + mergeable), the configured merge strategy executes automatically
+- When PR is ready (approved + checks pass + mergeable), the configured merge strategy executes automatically
+- Works for both: PRs that transition to ready, and PRs already ready when autoMerge is enabled
+- Each PR is only auto-merged once (tracked via `lastSeen.autoMergeAttempted`)
 - Actions are logged to `~/.claude/status-hub.log`
 
-**Transition triggers:**
-- Blocking checks finish (pending → passing)
-- Review decision changes to APPROVED
-
 **No auto-merge if:**
-- PR is already in ready state (no transition)
 - `autoMerge: false` or not set
+- Auto-merge was already attempted for this PR
 
 **Strategy resolution:** Uses `github.mergeStrategy` config (repos > orgs > default)
 
