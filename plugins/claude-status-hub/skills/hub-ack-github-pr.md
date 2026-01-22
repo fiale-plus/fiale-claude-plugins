@@ -436,6 +436,23 @@ When auto-merge executes, the PR state updates to MERGED on next refresh.
    [d] Mark as read
 ```
 
+### Case G: Merged PR (state == "MERGED")
+
+When a PR has been merged, offer to stop tracking it:
+
+```
+✅ PR #<number> "<title>" - Merged
+
+   This PR has been merged into <baseRefName>.
+
+   [1] Stop tracking (remove from monitoring)
+   [d] Keep tracking (dismiss alert only)
+```
+
+Actions:
+- **Stop tracking**: Remove this PR from `foreground[]` in `~/.claude/status-config.json`
+- **Keep tracking**: Just update `lastSeen.state` to "MERGED" and set `hasAlert: false`
+
 ## Step 3: Execute Selected Action
 
 Run the appropriate gh command based on user selection.
@@ -461,7 +478,10 @@ This sets the "expected" state so:
 - CI passes → no new alert (expected)
 - CI fails → new alert (unexpected failure)
 
-Set `hasAlert: false` for this item.
+**Special case - merged PR removal:**
+If user chose "Stop tracking" for a merged PR, remove the entire PR item from the `foreground[]` array instead of updating `lastSeen`.
+
+Set `hasAlert: false` for this item (if not removed).
 
 ## Error Handling
 
