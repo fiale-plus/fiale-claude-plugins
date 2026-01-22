@@ -515,6 +515,7 @@ setup_config_with_automerge() {
   local last_state="${3:-}"
   local last_checks_pending="${4:-0}"
   local auto_merge="${5:-false}"
+  local auto_merge_attempted="${6:-false}"
 
   cat > "$CONFIG" << EOF
 {
@@ -528,7 +529,8 @@ setup_config_with_automerge() {
         "commentsCount": $last_comments,
         "reviewDecision": "$last_review",
         "state": "$last_state",
-        "checksPending": $last_checks_pending
+        "checksPending": $last_checks_pending,
+        "autoMergeAttempted": $auto_merge_attempted
       }
     }
   ],
@@ -649,15 +651,26 @@ else
   fail "Auto-merge on approval" "gh merge called" "not called"
 fi
 
-# Test: already ready + autoMerge does NOT trigger (no transition)
+# Test: already ready + autoMerge + not yet attempted → triggers auto-merge
 TESTS_RUN=$((TESTS_RUN + 1))
-setup_config_with_automerge 0 "APPROVED" "OPEN" 0 true  # was already ready
+setup_config_with_automerge 0 "APPROVED" "OPEN" 0 true false  # ready but not attempted
+create_mock_gh_tracking "OPEN" "false" "APPROVED" "MERGEABLE"
+run_refresh
+if [ -f "$MOCK_BIN/calls/gh-merge" ]; then
+  pass "Auto-merge triggered when already ready (first attempt)"
+else
+  fail "Auto-merge already ready" "gh merge called" "not called"
+fi
+
+# Test: already ready + autoMerge + already attempted → does NOT trigger
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config_with_automerge 0 "APPROVED" "OPEN" 0 true true  # already attempted
 create_mock_gh_tracking "OPEN" "false" "APPROVED" "MERGEABLE"
 run_refresh
 if [ ! -f "$MOCK_BIN/calls/gh-merge" ]; then
-  pass "No auto-merge when already ready"
+  pass "No auto-merge when already attempted"
 else
-  fail "No auto-merge already ready" "gh merge NOT called" "was called"
+  fail "No auto-merge after attempt" "gh merge NOT called" "was called"
 fi
 
 # Test: transition to ready but autoMerge:false does NOT trigger
@@ -669,6 +682,30 @@ if [ ! -f "$MOCK_BIN/calls/gh-merge" ]; then
   pass "No auto-merge when disabled"
 else
   fail "No auto-merge when disabled" "gh merge NOT called" "was called"
+fi
+
+# Test: autoMergeAttempted gets set to true in config after merge attempt
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config_with_automerge 0 "APPROVED" "OPEN" 0 true false  # ready, not attempted
+create_mock_gh_tracking "OPEN" "false" "APPROVED" "MERGEABLE"
+run_refresh
+attempted=$(jq -r '.foreground[0].lastSeen.autoMergeAttempted' "$CONFIG")
+if [ "$attempted" = "true" ]; then
+  pass "autoMergeAttempted set to true after merge"
+else
+  fail "autoMergeAttempted update" "true" "$attempted"
+fi
+
+# Test: autoMergeAttempted stays false when PR not ready (checks pending)
+TESTS_RUN=$((TESTS_RUN + 1))
+setup_config_with_automerge 0 "APPROVED" "OPEN" 0 true false  # autoMerge enabled
+create_mock_gh "OPEN" "false" "APPROVED" "MERGEABLE" 0 2 0   # checks still pending
+run_refresh
+attempted=$(jq -r '.foreground[0].lastSeen.autoMergeAttempted' "$CONFIG")
+if [ "$attempted" = "false" ]; then
+  pass "autoMergeAttempted stays false when not ready"
+else
+  fail "autoMergeAttempted not ready" "false" "$attempted"
 fi
 
 echo ""
