@@ -10,19 +10,7 @@ See `connection-detect.md` for detection logic and `tool-slack.md` for implement
 
 ## Config Structure
 
-```json
-{
-  "slack": {
-    "connection": "auto",
-    "workspace": "mycompany.slack.com",
-    "chrome": { "tabId": 12345 },
-    "playwright": { "profile": "default", "headless": false },
-    "vipPeople": ["@boss", "@tech-lead"],
-    "channels": ["#incidents", "#deployments"],
-    "keywords": ["@here", "your-name"]
-  }
-}
-```
+See `connection-detect.md` for full config schema.
 
 ## Refresh Flow
 
@@ -120,64 +108,7 @@ For corporate environments blocking Slack MCP. Requires Slack open in Chrome.
 
 ### Data Extraction Script
 
-Run via `mcp__claude-in-chrome__javascript_tool`:
-
-```javascript
-(() => {
-  const result = {
-    unreadCount: 0,
-    channels: [],
-    dms: [],
-    mentions: []
-  };
-
-  // Get total unread badge
-  const unreadBadge = document.querySelector('.p-team_sidebar__mentions_badge');
-  result.unreadCount = parseInt(unreadBadge?.textContent || '0', 10);
-
-  // Get channel unreads
-  document.querySelectorAll('[data-qa="channel_sidebar_name_button"]').forEach(ch => {
-    const name = ch.textContent?.trim();
-    const container = ch.closest('[data-qa-channel-sidebar-channel-id]');
-    const badge = container?.querySelector('.p-channel_sidebar__badge');
-    const unreads = parseInt(badge?.textContent || '0', 10);
-
-    if (name && unreads > 0) {
-      result.channels.push({
-        name: name,
-        id: container?.getAttribute('data-qa-channel-sidebar-channel-id'),
-        unreads: unreads
-      });
-    }
-  });
-
-  // Get DM unreads
-  document.querySelectorAll('[data-qa="im_sidebar_name_button"]').forEach(dm => {
-    const name = dm.textContent?.trim();
-    const container = dm.closest('[data-qa-channel-sidebar-channel-id]');
-    const badge = container?.querySelector('.p-channel_sidebar__badge');
-    const unreads = parseInt(badge?.textContent || '0', 10);
-
-    if (name && unreads > 0) {
-      result.dms.push({
-        name: name,
-        id: container?.getAttribute('data-qa-channel-sidebar-channel-id'),
-        unreads: unreads
-      });
-    }
-  });
-
-  // Get mentions from activity section
-  document.querySelectorAll('[data-qa="activity_item"]').forEach(item => {
-    const text = item.textContent?.substring(0, 100);
-    if (text) {
-      result.mentions.push(text);
-    }
-  });
-
-  return result;
-})()
-```
+See `tool-slack.md` for the JavaScript extraction script.
 
 ### Usage
 

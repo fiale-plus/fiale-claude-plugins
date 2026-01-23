@@ -10,18 +10,7 @@ See `connection-detect.md` for detection logic and `tool-gcalendar.md` for imple
 
 ## Config Structure
 
-```json
-{
-  "calendar": {
-    "connection": "auto",
-    "chrome": { "tabId": 12345 },
-    "playwright": { "profile": "default", "headless": false },
-    "alertMinutesBefore": 5,
-    "alertWithDocsBefore": 10,
-    "lateMessageTo": "organizer"
-  }
-}
-```
+See `connection-detect.md` for full config schema.
 
 ## Refresh Flow
 
@@ -61,57 +50,7 @@ async function refreshCalendar(config) {
 
 ### Data Extraction
 
-Run via `mcp__claude-in-chrome__javascript_tool`:
-
-```javascript
-(() => {
-  const events = [];
-  const now = new Date();
-
-  // Find events in day/schedule view
-  const eventEls = document.querySelectorAll('[data-eventid], [data-eventchip]');
-
-  eventEls.forEach(el => {
-    try {
-      const ariaLabel = el.getAttribute('aria-label') || '';
-      const title = ariaLabel.split(',')[0] ||
-                    el.innerText?.split('\n')[0] ||
-                    'Unknown Event';
-
-      const timeMatch = ariaLabel.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)/);
-
-      const meetLink = el.querySelector('a[href*="meet.google.com"]')?.href ||
-                       el.querySelector('a[href*="zoom.us"]')?.href ||
-                       el.querySelector('a[href*="teams.microsoft.com"]')?.href || '';
-
-      const eventId = el.getAttribute('data-eventid') ||
-                      el.getAttribute('data-eventchip') ||
-                      title.substring(0, 20);
-
-      const hasAttachments = el.querySelector('[aria-label*="attachment"]') !== null ||
-                             ariaLabel.includes('attachment');
-
-      if (title && title !== 'Unknown Event') {
-        events.push({
-          id: eventId,
-          title: title.substring(0, 50),
-          time: timeMatch ? timeMatch[1] : null,
-          meetingLink: meetLink,
-          hasAttachments: hasAttachments,
-          ariaLabel: ariaLabel.substring(0, 200)
-        });
-      }
-    } catch (e) {}
-  });
-
-  const seen = new Set();
-  return events.filter(e => {
-    if (seen.has(e.id)) return false;
-    seen.add(e.id);
-    return true;
-  }).slice(0, 10);
-})()
-```
+See `tool-gcalendar.md` for the JavaScript extraction script.
 
 ### Usage
 

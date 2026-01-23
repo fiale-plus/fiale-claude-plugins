@@ -11,20 +11,7 @@ See `connection-detect.md` for detection logic.
 
 ## Config Structure
 
-Calendar config in `~/.claude/status-config.json`:
-
-```json
-{
-  "calendar": {
-    "connection": "auto",
-    "chrome": { "tabId": 12345 },
-    "playwright": { "profile": "default", "headless": false },
-    "alertMinutesBefore": 5,
-    "alertWithDocsBefore": 10,
-    "lateMessageTo": "organizer"
-  }
-}
-```
+See `connection-detect.md` for full config schema.
 
 ## Chrome MCP Mode
 
@@ -286,21 +273,4 @@ async function getCalendarEvents(config) {
 
 ## Troubleshooting
 
-### Playwright Cache Issues
-
-If Playwright has authentication or browser issues:
-
-```bash
-# Clear Playwright cache
-rm -rf ~/.cache/ms-playwright      # Linux
-rm -rf ~/Library/Caches/ms-playwright  # macOS
-
-# Re-login
-npx playwright open --save-storage=~/.claude/playwright-profile https://calendar.google.com
-```
-
-### Chrome Extension Issues
-
-1. Verify extension is installed and enabled
-2. Check that tab group permissions allow calendar access
-3. Try creating a new tab via `/hub-setup-gcalendar`
+For Playwright cache issues or Chrome extension problems, run `/hub-setup-gcalendar` which includes troubleshooting steps.

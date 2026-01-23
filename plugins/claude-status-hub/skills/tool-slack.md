@@ -13,21 +13,7 @@ See `connection-detect.md` for detection logic.
 
 ## Config Structure
 
-Slack config in `~/.claude/status-config.json`:
-
-```json
-{
-  "slack": {
-    "connection": "auto",
-    "workspace": "mycompany.slack.com",
-    "chrome": { "tabId": 12345 },
-    "playwright": { "profile": "default", "headless": false },
-    "vipPeople": ["@boss", "@tech-lead"],
-    "channels": ["#incidents", "#deployments"],
-    "keywords": ["@here", "your-name"]
-  }
-}
-```
+See `connection-detect.md` for full config schema.
 
 ---
 
@@ -502,33 +488,4 @@ async function getSlackData(config) {
 
 ## Troubleshooting
 
-### Slack MCP Blocked
-
-Corporate environments often block external MCP connections.
-Switch to Chrome or Playwright mode:
-
-```json
-{
-  "slack": {
-    "connection": "chrome"
-  }
-}
-```
-
-### Playwright Cache Issues
-
-```bash
-# Clear Playwright cache
-rm -rf ~/.cache/ms-playwright      # Linux
-rm -rf ~/Library/Caches/ms-playwright  # macOS
-
-# Re-login
-npx playwright open --save-storage=~/.claude/playwright-profile https://mycompany.slack.com
-```
-
-### API Token Expiry
-
-The xoxc token expires frequently (hours to days). If using API mode:
-
-1. Run `/hub-setup-slack` to extract fresh credentials
-2. Consider switching to Chrome or Playwright mode for reliability
+For connection issues (MCP blocked, Playwright cache, API token expiry), run `/hub-setup-slack` which includes troubleshooting steps and can reconfigure your connection method.
