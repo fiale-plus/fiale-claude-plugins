@@ -1,15 +1,24 @@
-# Tool: Google Calendar API
+# Tool: Google Calendar
 
-Curl-based Google Calendar API operations for environments without Chrome MCP.
+Browser-based Google Calendar operations via Chrome MCP or Playwright.
+
+## Connection Hierarchy
+
+1. **Chrome MCP** (primary) - Requires open Google Calendar tab
+2. **Playwright** (fallback) - Headless browser automation
+
+See `connection-detect.md` for detection logic.
 
 ## Config Structure
 
-Calendar API config in `~/.claude/status-config.json`:
+Calendar config in `~/.claude/status-config.json`:
 
 ```json
 {
   "calendar": {
-    "connection": "api",
+    "connection": "auto",
+    "chrome": { "tabId": 12345 },
+    "playwright": { "profile": "default", "headless": false },
     "alertMinutesBefore": 5,
     "alertWithDocsBefore": 10,
     "lateMessageTo": "organizer"
@@ -17,255 +26,281 @@ Calendar API config in `~/.claude/status-config.json`:
 }
 ```
 
-Credentials stored separately:
-- `~/.claude/gcalendar-credentials.json` - OAuth client credentials
-- `~/.claude/gcalendar-token.json` - Refresh/access tokens
+## Chrome MCP Mode
 
-## Credential Files
+### Prerequisites
 
-### `gcalendar-credentials.json`
+- Google Calendar open in a browser tab
+- Claude-in-Chrome extension installed
+- Tab ID stored in `calendar.chrome.tabId`
 
-```json
-{
-  "client_id": "xxx.apps.googleusercontent.com",
-  "client_secret": "GOCSPX-xxx"
-}
-```
+### Data Extraction Script
 
-### `gcalendar-token.json`
-
-```json
-{
-  "refresh_token": "1//xxx",
-  "access_token": "ya29.xxx",
-  "expires_at": 1234567890
-}
-```
-
-## Token Refresh
-
-Before any API call, check if access token is expired and refresh if needed:
-
-```bash
-gcal_get_token() {
-  local creds_file="$HOME/.claude/gcalendar-credentials.json"
-  local token_file="$HOME/.claude/gcalendar-token.json"
-
-  # Check files exist
-  if [ ! -f "$creds_file" ] || [ ! -f "$token_file" ]; then
-    echo "ERROR: Calendar credentials not configured. Run /hub-setup-gcalendar" >&2
-    return 1
-  fi
-
-  # Read credentials
-  local client_id=$(jq -r '.client_id' "$creds_file")
-  local client_secret=$(jq -r '.client_secret' "$creds_file")
-  local refresh_token=$(jq -r '.refresh_token' "$token_file")
-  local access_token=$(jq -r '.access_token' "$token_file")
-  local expires_at=$(jq -r '.expires_at // 0' "$token_file")
-
-  # Check if token is still valid (with 60s buffer)
-  local now=$(date +%s)
-  if [ "$expires_at" -gt $((now + 60)) ] && [ -n "$access_token" ] && [ "$access_token" != "null" ]; then
-    echo "$access_token"
-    return 0
-  fi
-
-  # Refresh the token
-  local response=$(curl -s -X POST "https://oauth2.googleapis.com/token" \
-    -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "client_id=$client_id" \
-    -d "client_secret=$client_secret" \
-    -d "refresh_token=$refresh_token" \
-    -d "grant_type=refresh_token")
-
-  # Check for errors
-  if echo "$response" | jq -e '.error' >/dev/null 2>&1; then
-    local error=$(echo "$response" | jq -r '.error_description // .error')
-    echo "ERROR: Token refresh failed: $error" >&2
-    return 1
-  fi
-
-  # Extract new access token
-  local new_token=$(echo "$response" | jq -r '.access_token')
-  local expires_in=$(echo "$response" | jq -r '.expires_in // 3600')
-  local new_expires_at=$((now + expires_in))
-
-  # Update token file (preserve refresh_token)
-  jq --arg token "$new_token" --argjson expires "$new_expires_at" \
-    '.access_token = $token | .expires_at = $expires' "$token_file" > "$token_file.tmp" \
-    && mv "$token_file.tmp" "$token_file"
-
-  echo "$new_token"
-}
-```
-
-## List Events
-
-Get upcoming calendar events:
-
-```bash
-gcal_list_events() {
-  local token=$(gcal_get_token) || return 1
-  local max_results="${1:-10}"
-  local time_min="${2:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
-
-  curl -s -X GET \
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events" \
-    -H "Authorization: Bearer $token" \
-    -G \
-    --data-urlencode "timeMin=$time_min" \
-    --data-urlencode "maxResults=$max_results" \
-    --data-urlencode "singleEvents=true" \
-    --data-urlencode "orderBy=startTime"
-}
-```
-
-Response structure:
-```json
-{
-  "items": [
-    {
-      "id": "event_id",
-      "summary": "Meeting Title",
-      "description": "Meeting notes...",
-      "start": {
-        "dateTime": "2025-01-15T10:00:00-08:00",
-        "timeZone": "America/Los_Angeles"
-      },
-      "end": {
-        "dateTime": "2025-01-15T11:00:00-08:00"
-      },
-      "hangoutLink": "https://meet.google.com/xxx-xxxx-xxx",
-      "organizer": {
-        "email": "organizer@example.com",
-        "displayName": "John Doe"
-      },
-      "attendees": [
-        {"email": "attendee@example.com", "responseStatus": "accepted"}
-      ],
-      "attachments": [
-        {"title": "Agenda.pdf", "fileUrl": "https://..."}
-      ]
-    }
-  ]
-}
-```
-
-## Get Single Event
-
-Get detailed event info including description, attendees, and attachments:
-
-```bash
-gcal_get_event() {
-  local token=$(gcal_get_token) || return 1
-  local event_id="$1"
-
-  curl -s -X GET \
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events/$event_id" \
-    -H "Authorization: Bearer $token"
-}
-```
-
-## Create Event
-
-Create a new calendar event:
-
-```bash
-gcal_create_event() {
-  local token=$(gcal_get_token) || return 1
-  local summary="$1"
-  local start_time="$2"  # ISO 8601 format
-  local end_time="$3"    # ISO 8601 format
-  local description="${4:-}"
-  local attendees="${5:-}"  # Comma-separated emails
-
-  # Build attendees JSON array
-  local attendees_json="[]"
-  if [ -n "$attendees" ]; then
-    attendees_json=$(echo "$attendees" | tr ',' '\n' | jq -R '{"email": .}' | jq -s '.')
-  fi
-
-  # Build event JSON
-  local event_json=$(jq -n \
-    --arg summary "$summary" \
-    --arg description "$description" \
-    --arg start "$start_time" \
-    --arg end "$end_time" \
-    --argjson attendees "$attendees_json" \
-    '{
-      summary: $summary,
-      description: $description,
-      start: {dateTime: $start},
-      end: {dateTime: $end},
-      attendees: $attendees
-    }')
-
-  curl -s -X POST \
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events" \
-    -H "Authorization: Bearer $token" \
-    -H "Content-Type: application/json" \
-    -d "$event_json"
-}
-```
-
-## Parse Events for Hub
-
-Convert API response to hub format:
-
-```bash
-gcal_parse_for_hub() {
-  local events_json="$1"
-  local now=$(date +%s)
-
-  echo "$events_json" | jq --argjson now "$now" '
-    .items // [] | map({
-      id: .id,
-      title: (.summary // "No Title") | .[0:50],
-      startTime: (
-        if .start.dateTime then
-          (.start.dateTime | fromdateiso8601)
-        elif .start.date then
-          (.start.date + "T00:00:00Z" | fromdateiso8601)
-        else null end
-      ),
-      meetingLink: (.hangoutLink // .conferenceData.entryPoints[0].uri // null),
-      organizer: (.organizer.displayName // .organizer.email // null),
-      hasAttachments: ((.attachments | length) > 0)
-    }) | sort_by(.startTime) | map(select(.startTime > $now)) | .[0:5]
-  '
-}
-```
-
-## Error Codes
-
-Common API errors:
-
-| Error | Meaning | Action |
-|-------|---------|--------|
-| 401 Unauthorized | Token expired/invalid | Re-run gcal_get_token or /hub-setup-gcalendar |
-| 403 Forbidden | Calendar API not enabled | Enable API in Google Cloud Console |
-| 404 Not Found | Event/calendar doesn't exist | Check event ID |
-| 429 Rate Limited | Too many requests | Wait and retry |
-
-## Integration with Hub Refresh
-
-When `calendar.connection` is `"api"`, use these curl functions instead of Chrome MCP.
-
-In `hub-refresh-calendar.md`, check connection type:
+Run via `mcp__claude-in-chrome__javascript_tool`:
 
 ```javascript
-const config = readConfig();
-if (config.calendar?.connection === "api") {
-  // Use gcal_list_events() via Bash
-  // Parse with gcal_parse_for_hub()
-} else {
-  // Use Chrome MCP (existing code)
+(() => {
+  const events = [];
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+
+  // Find events in day/schedule view
+  const eventEls = document.querySelectorAll('[data-eventid], [data-eventchip]');
+
+  eventEls.forEach(el => {
+    try {
+      // Get event title from aria-label or text content
+      const ariaLabel = el.getAttribute('aria-label') || '';
+      const title = ariaLabel.split(',')[0] ||
+                    el.innerText?.split('\n')[0] ||
+                    'Unknown Event';
+
+      // Extract time from aria-label
+      const timeMatch = ariaLabel.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)/);
+
+      // Look for meeting links
+      const meetLink = el.querySelector('a[href*="meet.google.com"]')?.href ||
+                       el.querySelector('a[href*="zoom.us"]')?.href ||
+                       el.querySelector('a[href*="teams.microsoft.com"]')?.href || '';
+
+      // Get event ID for deduplication
+      const eventId = el.getAttribute('data-eventid') ||
+                      el.getAttribute('data-eventchip') ||
+                      title.substring(0, 20);
+
+      // Check for attachments
+      const hasAttachments = el.querySelector('[aria-label*="attachment"]') !== null ||
+                             ariaLabel.includes('attachment');
+
+      if (title && title !== 'Unknown Event') {
+        events.push({
+          id: eventId,
+          title: title.substring(0, 50),
+          time: timeMatch ? timeMatch[1] : null,
+          meetingLink: meetLink,
+          hasAttachments: hasAttachments,
+          ariaLabel: ariaLabel.substring(0, 200)
+        });
+      }
+    } catch (e) {
+      // Skip malformed events
+    }
+  });
+
+  // Deduplicate by ID
+  const seen = new Set();
+  return events.filter(e => {
+    if (seen.has(e.id)) return false;
+    seen.add(e.id);
+    return true;
+  }).slice(0, 10);
+})()
+```
+
+### Usage Example
+
+```javascript
+// 1. Get or verify tab context
+const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: false });
+const tabId = config.calendar.chrome.tabId;
+
+// 2. Verify tab is on Google Calendar
+const pageText = await mcp__claude-in-chrome__get_page_text({ tabId });
+if (!pageText.includes('calendar.google.com')) {
+  // Tab may have navigated away, need to refresh
+  await mcp__claude-in-chrome__navigate({ tabId, url: 'https://calendar.google.com' });
+}
+
+// 3. Extract events
+const events = await mcp__claude-in-chrome__javascript_tool({
+  action: 'javascript_exec',
+  tabId: tabId,
+  text: extractionScript
+});
+```
+
+## Playwright Mode
+
+### Prerequisites
+
+- Playwright MCP installed (`npx @playwright/mcp@latest`)
+- Google account logged in (via persistent profile)
+
+### Profile Setup
+
+Playwright uses persistent browser profiles for authentication:
+
+```bash
+# First-time setup: log into Google manually
+npx playwright open --save-storage=~/.claude/playwright-profile https://calendar.google.com
+```
+
+### Data Extraction
+
+```javascript
+// 1. Navigate to Google Calendar
+await mcp__playwright__browser_navigate({
+  url: 'https://calendar.google.com'
+});
+
+// 2. Wait for page load
+await mcp__playwright__browser_wait({
+  selector: '[data-eventid]',
+  timeout: 10000
+});
+
+// 3. Execute extraction script
+const events = await mcp__playwright__browser_evaluate({
+  expression: extractionScript
+});
+
+// 4. Take screenshot for verification (optional)
+const screenshot = await mcp__playwright__browser_screenshot();
+```
+
+### Headless vs Headed
+
+- `headless: false` - Shows browser window, useful for debugging
+- `headless: true` - No visible window, better for background refresh
+
+Configure in `calendar.playwright.headless`.
+
+## Time Parsing
+
+Convert extracted time strings to timestamps:
+
+```javascript
+function parseEventTime(timeStr, baseDate = new Date()) {
+  if (!timeStr) return null;
+
+  // Handle formats: "2:30 PM", "14:30", "2pm", "2:30pm"
+  const match = timeStr.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?/);
+  if (!match) return null;
+
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2] || '0', 10);
+  const meridiem = match[3]?.toUpperCase();
+
+  if (meridiem === 'PM' && hours < 12) hours += 12;
+  if (meridiem === 'AM' && hours === 12) hours = 0;
+
+  const date = new Date(baseDate);
+  date.setHours(hours, minutes, 0, 0);
+  return date.getTime();
 }
 ```
 
-## Scopes Required
+## Output Format
 
-The OAuth setup needs these scopes:
-- `https://www.googleapis.com/auth/calendar.readonly` - List/read events
-- `https://www.googleapis.com/auth/calendar.events` - Create events (optional)
+Standardized format for hub integration:
+
+```json
+{
+  "events": [
+    {
+      "id": "event_abc123",
+      "title": "Team Standup",
+      "startTime": 1705344000000,
+      "meetingLink": "https://meet.google.com/xxx-yyyy-zzz",
+      "hasAttachments": false,
+      "organizer": "alice@company.com"
+    }
+  ],
+  "nextMeeting": {
+    "title": "Team Standup",
+    "startTime": 1705344000000,
+    "minutesUntil": 15,
+    "meetingLink": "https://meet.google.com/xxx-yyyy-zzz"
+  }
+}
+```
+
+## Alert Detection
+
+Check if any meeting needs an alert:
+
+```javascript
+function checkAlerts(events, config) {
+  const now = Date.now();
+  const alertMinutes = config.calendar?.alertMinutesBefore || 5;
+  const alertWithDocs = config.calendar?.alertWithDocsBefore || 10;
+
+  for (const event of events) {
+    if (!event.startTime) continue;
+
+    const minutesUntil = (event.startTime - now) / 60000;
+    const threshold = event.hasAttachments ? alertWithDocs : alertMinutes;
+
+    if (minutesUntil > 0 && minutesUntil <= threshold) {
+      return {
+        shouldAlert: true,
+        event: event,
+        minutesUntil: Math.round(minutesUntil)
+      };
+    }
+  }
+
+  return { shouldAlert: false };
+}
+```
+
+## Error Handling
+
+### Chrome Tab Issues
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Tab not found | Tab closed or ID stale | Re-run `/hub-setup-gcalendar` |
+| Wrong page | Tab navigated away | Navigate back to calendar |
+| No events found | Calendar view issue | Try different view (day/schedule) |
+
+### Playwright Issues
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Not logged in | Session expired | Re-login via `/hub-setup-gcalendar` |
+| Timeout | Slow load | Increase timeout or retry |
+| MCP unavailable | Playwright not installed | Run `npx @playwright/mcp@latest` |
+
+## Fallback Strategy
+
+```javascript
+async function getCalendarEvents(config) {
+  const connection = await detectCalendarConnection(config);
+
+  switch (connection.method) {
+    case 'chrome':
+      return await getEventsViaChrome(config, connection.tabId);
+
+    case 'playwright':
+      return await getEventsViaPlaywright(config);
+
+    case 'unavailable':
+      throw new Error('Calendar: No connection available. Run /hub-setup-gcalendar');
+
+    case 'disabled':
+      return { events: [], disabled: true };
+  }
+}
+```
+
+## Troubleshooting
+
+### Playwright Cache Issues
+
+If Playwright has authentication or browser issues:
+
+```bash
+# Clear Playwright cache
+rm -rf ~/.cache/ms-playwright      # Linux
+rm -rf ~/Library/Caches/ms-playwright  # macOS
+
+# Re-login
+npx playwright open --save-storage=~/.claude/playwright-profile https://calendar.google.com
+```
+
+### Chrome Extension Issues
+
+1. Verify extension is installed and enabled
+2. Check that tab group permissions allow calendar access
+3. Try creating a new tab via `/hub-setup-gcalendar`

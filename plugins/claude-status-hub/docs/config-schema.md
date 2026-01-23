@@ -49,8 +49,9 @@ Reference for `~/.claude/status-config.json` structure.
   },
 
   "calendar": {
-    "connection": "chrome",
+    "connection": "auto",
     "chrome": { "tabId": null },
+    "playwright": { "profile": "default", "headless": false },
     "alertMinutesBefore": 5,
     "alertWithDocsBefore": 10,
     "lateMessageTo": "organizer",
@@ -60,8 +61,10 @@ Reference for `~/.claude/status-config.json` structure.
   },
 
   "slack": {
-    "connection": "chrome",
+    "connection": "auto",
+    "workspace": "mycompany.slack.com",
     "chrome": { "tabId": null },
+    "playwright": { "profile": "default", "headless": false },
     "vipPeople": ["@boss", "@tech-lead"],
     "channels": ["#incidents", "#deployments"],
     "keywords": ["@here", "your-name"],
@@ -154,28 +157,43 @@ PRs can be configured for automatic merging when they become ready. Set `autoMer
 
 ### calendar
 
-Browser-based calendar integration via Chrome MCP.
+Calendar integration with automatic connection detection.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `connection` | string | "chrome" | "chrome", "official", "oauth-mcp", "disabled" |
-| `chrome.tabId` | number | null | Browser tab ID for Google Calendar |
+| `connection` | string | "auto" | "auto", "chrome", "playwright", "disabled" |
+| `chrome.tabId` | number | null | Browser tab ID for Google Calendar (Chrome MCP) |
+| `playwright.profile` | string | "default" | Playwright browser profile name |
+| `playwright.headless` | boolean | false | Run Playwright in headless mode |
 | `alertMinutesBefore` | number | 5 | Alert timing for regular meetings |
 | `alertWithDocsBefore` | number | 10 | Alert timing for meetings with attachments |
 | `lateMessageTo` | string | "organizer" | Who to DM if running late |
 
+**Connection Priority** (when `auto`): Chrome MCP > Playwright
+
 ### slack
 
-Browser-based Slack integration via Chrome MCP.
+Slack integration with automatic connection detection.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `connection` | string | "chrome" | "chrome", "official", "oauth-mcp", "disabled" |
-| `chrome.tabId` | number | null | Browser tab ID for Slack |
+| `connection` | string | "auto" | "auto", "mcp", "chrome", "playwright", "api", "disabled" |
+| `workspace` | string | null | Slack workspace URL (e.g., "mycompany.slack.com") |
+| `chrome.tabId` | number | null | Browser tab ID for Slack (Chrome MCP) |
+| `playwright.profile` | string | "default" | Playwright browser profile name |
+| `playwright.headless` | boolean | false | Run Playwright in headless mode |
 | `vipPeople` | string[] | [] | DMs from these people trigger alerts |
 | `channels` | string[] | [] | New messages in these channels trigger alerts |
 | `keywords` | string[] | [] | Messages containing these trigger alerts |
 | `knowledgeSources` | string[] | [] | Sources for reply assistance |
+
+**Connection Priority** (when `auto`): Slack MCP > Chrome MCP > Playwright > API (xoxc+d)
+
+**Connection Methods:**
+- `mcp`: Official Slack MCP plugin (best for non-corporate setups)
+- `chrome`: Claude-in-Chrome extension with open Slack tab
+- `playwright`: Headless browser automation via Playwright MCP
+- `api`: Legacy xoxc+d cookie method (unreliable, last resort)
 
 ### focus
 

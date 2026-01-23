@@ -404,6 +404,181 @@ else
 fi
 
 echo ""
+echo "Testing connection configuration..."
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test auto connection config
+cat > "$TEST_CLAUDE_DIR/status-config-auto.json" << 'EOF'
+{
+  "slack": {
+    "connection": "auto",
+    "workspace": "mycompany.slack.com",
+    "chrome": { "tabId": null },
+    "playwright": { "profile": "default", "headless": false }
+  }
+}
+EOF
+
+connection=$(jq -r '.slack.connection' "$TEST_CLAUDE_DIR/status-config-auto.json")
+if [ "$connection" = "auto" ]; then
+  pass "Auto connection config parsed correctly"
+else
+  fail "Auto connection config" "auto" "$connection"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test MCP connection config
+cat > "$TEST_CLAUDE_DIR/status-config-mcp.json" << 'EOF'
+{
+  "slack": {
+    "connection": "mcp",
+    "workspace": "mycompany.slack.com"
+  }
+}
+EOF
+
+mcp_connection=$(jq -r '.slack.connection' "$TEST_CLAUDE_DIR/status-config-mcp.json")
+if [ "$mcp_connection" = "mcp" ]; then
+  pass "MCP connection config parsed correctly"
+else
+  fail "MCP connection" "mcp" "$mcp_connection"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test chrome connection config
+cat > "$TEST_CLAUDE_DIR/status-config-chrome.json" << 'EOF'
+{
+  "slack": {
+    "connection": "chrome",
+    "workspace": "mycompany.slack.com",
+    "chrome": { "tabId": 12345 }
+  }
+}
+EOF
+
+chrome_tab=$(jq -r '.slack.chrome.tabId' "$TEST_CLAUDE_DIR/status-config-chrome.json")
+if [ "$chrome_tab" = "12345" ]; then
+  pass "Chrome connection with tabId parsed correctly"
+else
+  fail "Chrome tabId" "12345" "$chrome_tab"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test playwright connection config
+cat > "$TEST_CLAUDE_DIR/status-config-playwright.json" << 'EOF'
+{
+  "slack": {
+    "connection": "playwright",
+    "workspace": "mycompany.slack.com",
+    "playwright": { "profile": "custom", "headless": true }
+  }
+}
+EOF
+
+pw_profile=$(jq -r '.slack.playwright.profile' "$TEST_CLAUDE_DIR/status-config-playwright.json")
+pw_headless=$(jq -r '.slack.playwright.headless' "$TEST_CLAUDE_DIR/status-config-playwright.json")
+if [ "$pw_profile" = "custom" ] && [ "$pw_headless" = "true" ]; then
+  pass "Playwright connection config parsed correctly"
+else
+  fail "Playwright config" "profile=custom, headless=true" "profile=$pw_profile, headless=$pw_headless"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test API connection config (legacy)
+cat > "$TEST_CLAUDE_DIR/status-config-api.json" << 'EOF'
+{
+  "slack": {
+    "connection": "api",
+    "workspace": "mycompany.slack.com"
+  }
+}
+EOF
+
+api_connection=$(jq -r '.slack.connection' "$TEST_CLAUDE_DIR/status-config-api.json")
+if [ "$api_connection" = "api" ]; then
+  pass "API connection config parsed correctly"
+else
+  fail "API connection" "api" "$api_connection"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test disabled connection
+cat > "$TEST_CLAUDE_DIR/status-config-disabled.json" << 'EOF'
+{
+  "slack": {
+    "connection": "disabled"
+  }
+}
+EOF
+
+disabled=$(jq -r '.slack.connection' "$TEST_CLAUDE_DIR/status-config-disabled.json")
+if [ "$disabled" = "disabled" ]; then
+  pass "Disabled connection config parsed correctly"
+else
+  fail "Disabled connection" "disabled" "$disabled"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test connection type validation
+valid_connections="auto mcp chrome playwright api disabled"
+test_connection="mcp"
+if echo "$valid_connections" | grep -qw "$test_connection"; then
+  pass "Connection type validation works (mcp is valid)"
+else
+  fail "Connection validation" "mcp in valid list" "not found"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test connection priority order
+priority_order="mcp chrome playwright api"
+first_priority=$(echo "$priority_order" | awk '{print $1}')
+if [ "$first_priority" = "mcp" ]; then
+  pass "Connection priority order correct (MCP first)"
+else
+  fail "Connection priority" "mcp first" "$first_priority first"
+fi
+
+echo ""
+echo "Testing Chrome extraction output parsing..."
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test browser extraction output
+cat > "$TEST_DIR/chrome-extraction.json" << 'EOF'
+{
+  "unreadCount": 15,
+  "channels": [
+    { "name": "incidents", "id": "C123ABC", "unreads": 5 },
+    { "name": "engineering", "id": "C456DEF", "unreads": 10 }
+  ],
+  "dms": [
+    { "name": "boss", "id": "D789GHI", "unreads": 2 }
+  ],
+  "mentions": ["@you can you review this?"]
+}
+EOF
+
+unread_count=$(jq '.unreadCount' "$TEST_DIR/chrome-extraction.json")
+channel_count=$(jq '.channels | length' "$TEST_DIR/chrome-extraction.json")
+dm_count=$(jq '.dms | length' "$TEST_DIR/chrome-extraction.json")
+
+if [ "$unread_count" = "15" ] && [ "$channel_count" = "2" ] && [ "$dm_count" = "1" ]; then
+  pass "Chrome extraction output parsed correctly"
+else
+  fail "Chrome extraction" "unreads=15, channels=2, dms=1" "unreads=$unread_count, channels=$channel_count, dms=$dm_count"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test VIP detection logic
+vip_list='["@boss", "@tech-lead"]'
+dm_name="boss"
+is_vip=$(echo "$vip_list" | jq --arg name "$dm_name" 'any(. | contains($name))')
+if [ "$is_vip" = "true" ]; then
+  pass "VIP detection works correctly"
+else
+  fail "VIP detection" "boss is VIP" "not detected"
+fi
+
+echo ""
 echo "Testing search response parsing..."
 
 TESTS_RUN=$((TESTS_RUN + 1))

@@ -1,45 +1,396 @@
 ---
 name: hub-setup-slack
-description: Set up Slack API access using browser session credentials (xoxc token + d cookie)
+description: Set up Slack integration (Slack MCP, Chrome, Playwright, or API)
 ---
 
-# Slack API Setup Wizard
+# Slack Setup Wizard
 
-Interactive wizard to configure Slack API access using browser session tokens.
+Interactive wizard to configure Slack integration with multiple connection options.
 
 ## When to Use
 
 - User runs `/hub-setup-slack`
-- User wants Slack integration without creating a Slack App
-- User needs to read/post messages programmatically
+- Slack connection method needs configuration
+- Connection is failing and needs reconfiguration
 
 ## File Locations
 
-- `~/.claude/slack-credentials.json` - Workspace URL
-- `~/.claude/slack-token.json` - xoxc token + d cookie
 - `~/.claude/status-config.json` - Hub config (slack settings)
+- `~/.claude/slack-credentials.json` - Workspace URL (API mode)
+- `~/.claude/slack-token.json` - xoxc token + d cookie (API mode)
+- `~/.claude/playwright-profile/` - Playwright browser profile
+
+## Connection Methods
+
+| Method | Best For | Requirements |
+|--------|----------|--------------|
+| Slack MCP | Non-corporate | Slack MCP plugin |
+| Chrome MCP | Corporate (MCP blocked) | Claude-in-Chrome extension |
+| Playwright | Headless/background | Playwright MCP plugin |
+| API | Last resort | Manual token extraction |
 
 ## Wizard Flow
 
-### Step 1: Introduction
+### Step 1: Choose Connection Method
 
 Use AskUserQuestion:
 
 ```
-question: "Slack API setup uses browser session credentials (no Slack App required). How would you like to proceed?"
-header: "Setup"
+question: "How would you like to connect to Slack?"
+header: "Connection"
 options:
-  - label: "I'll extract credentials from DevTools"
-    description: "You know how to get the xoxc token and d cookie"
-  - label: "Guide me through extraction"
-    description: "Show step-by-step instructions to get credentials"
-  - label: "Skip Slack setup"
-    description: "Set up Slack later"
+  - label: "Slack MCP plugin (Recommended)"
+    description: "Official Slack integration - best for non-corporate environments"
+  - label: "Chrome browser tab"
+    description: "Use an open Slack tab - works in corporate environments"
+  - label: "Playwright (headless)"
+    description: "Automated browser - works without visible Chrome"
+  - label: "API tokens (manual)"
+    description: "Extract xoxc token manually - unreliable, last resort"
 ```
 
-### Step 2a: Guide Through Credential Extraction
+---
 
-If user selected "Guide me through extraction", show these instructions:
+## Slack MCP Setup
+
+### Step 2a: Check Slack MCP Installation
+
+```
+question: "Do you have the Slack MCP plugin installed?"
+header: "Slack MCP"
+options:
+  - label: "Yes, it's installed"
+    description: "Test the connection"
+  - label: "No, I need to install it"
+    description: "Show installation instructions"
+```
+
+If needs installation:
+
+```
+## Installing Slack MCP Plugin
+
+1. In Claude Code, run: /install slack
+   (from the claude-plugins-official marketplace)
+
+2. Restart Claude Code after installation
+
+3. You'll be prompted to authorize with Slack
+
+4. Run /hub-setup-slack again
+```
+
+### Step 3a: Test Slack MCP Connection
+
+```javascript
+// Test if Slack MCP is working
+try {
+  const channels = await mcp__slack__list_channels({ limit: 1 });
+  if (channels && !channels.error) {
+    // Success!
+    return { connected: true, method: 'mcp' };
+  }
+} catch (e) {
+  // MCP not available or blocked
+}
+```
+
+If connection fails:
+
+```
+Slack MCP connection failed.
+
+This usually means:
+- Corporate firewall is blocking the connection
+- Plugin needs reauthorization
+
+Try one of these alternatives:
+- Chrome browser tab (works in most corporate environments)
+- Playwright (headless browser automation)
+
+Would you like to try a different method?
+```
+
+### Step 4a: Get Workspace Info
+
+```
+question: "What's your Slack workspace URL? (e.g., mycompany.slack.com)"
+header: "Workspace"
+options:
+  - label: "Continue..."
+    description: "I'll enter the workspace in the 'Other' field"
+```
+
+### Step 5a: Save Config (MCP)
+
+```json
+{
+  "slack": {
+    "connection": "mcp",
+    "workspace": "mycompany.slack.com",
+    "vipPeople": [],
+    "channels": []
+  }
+}
+```
+
+### Success Message (MCP)
+
+```
+Slack connected via Slack MCP!
+
+Workspace: mycompany.slack.com
+
+Your statusline will now show:
+- Unread message counts
+- Alerts for VIP messages (configure in /hub)
+
+Use /hub-ack to interact with Slack alerts.
+```
+
+---
+
+## Chrome MCP Setup
+
+### Step 2b: Check Chrome Extension
+
+```
+question: "Do you have the Claude-in-Chrome extension installed?"
+header: "Extension"
+options:
+  - label: "Yes, it's installed"
+    description: "Proceed to tab setup"
+  - label: "No, I need to install it"
+    description: "Show installation instructions"
+```
+
+If needs installation:
+
+```
+## Installing Claude-in-Chrome
+
+1. Install from Chrome Web Store (search "Claude in Chrome")
+2. Click the extension icon and sign in
+3. Come back here when ready
+
+The extension allows Claude to interact with browser tabs.
+```
+
+### Step 3b: Open Slack
+
+```
+question: "Please open your Slack workspace in the browser and come back."
+header: "Open Slack"
+options:
+  - label: "Slack is open"
+    description: "Proceed to connect"
+  - label: "I'll do this later"
+    description: "Cancel setup for now"
+```
+
+### Step 4b: Get Tab Context
+
+```javascript
+// Get current tabs
+const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: true });
+
+// Find Slack tab
+const tabs = context.tabs || [];
+const slackTab = tabs.find(t => t.url?.includes('slack.com'));
+
+if (slackTab) {
+  tabId = slackTab.id;
+  workspace = new URL(slackTab.url).hostname;
+}
+```
+
+### Step 5b: Verify and Save
+
+Test extraction on the tab:
+
+```javascript
+const data = await mcp__claude-in-chrome__javascript_tool({
+  action: 'javascript_exec',
+  tabId: tabId,
+  text: '(() => { return !!document.querySelector("[data-qa=channel_sidebar]"); })()'
+});
+```
+
+Save config:
+
+```json
+{
+  "slack": {
+    "connection": "chrome",
+    "workspace": "mycompany.slack.com",
+    "chrome": { "tabId": 12345 },
+    "vipPeople": [],
+    "channels": []
+  }
+}
+```
+
+### Success Message (Chrome)
+
+```
+Slack connected via Chrome!
+
+Tab ID: 12345
+Workspace: mycompany.slack.com
+
+Your statusline will now show:
+- Unread message counts
+- Alerts for VIP messages
+
+Keep the Slack tab open for best results.
+Use /hub-ack to interact with Slack alerts.
+```
+
+---
+
+## Playwright Setup
+
+### Step 2c: Check Playwright Installation
+
+```
+question: "Do you have the Playwright plugin installed?"
+header: "Playwright"
+options:
+  - label: "Yes, it's installed"
+    description: "Proceed to login"
+  - label: "No, I need to install it"
+    description: "Show installation instructions"
+```
+
+If needs installation:
+
+```
+## Installing Playwright Plugin
+
+1. In Claude Code, run: /install playwright
+   (from the claude-plugins-official marketplace)
+
+2. Restart Claude Code after installation
+
+3. Come back and run /hub-setup-slack again
+```
+
+### Step 3c: Get Workspace URL
+
+```
+question: "What's your Slack workspace URL? (e.g., mycompany.slack.com)"
+header: "Workspace"
+options:
+  - label: "Continue..."
+    description: "I'll enter the workspace in the 'Other' field"
+```
+
+### Step 4c: Login to Slack
+
+```
+## Slack Login
+
+Playwright needs a logged-in browser session.
+
+Run this command in your terminal:
+
+npx playwright open --save-storage=~/.claude/playwright-profile https://mycompany.slack.com
+
+1. A browser window will open
+2. Log into your Slack workspace
+3. Wait until you see your channels
+4. Close the browser when done
+
+This saves your login session for Playwright to use.
+```
+
+Ask when ready:
+
+```
+question: "Have you completed the Slack login in the Playwright browser?"
+header: "Login"
+options:
+  - label: "Yes, I'm logged in"
+    description: "Test the connection"
+  - label: "I need help"
+    description: "Show troubleshooting steps"
+  - label: "I'll do this later"
+    description: "Cancel setup for now"
+```
+
+### Step 5c: Test and Save
+
+```javascript
+// Navigate to Slack
+await mcp__playwright__browser_navigate({
+  url: `https://${workspace}`
+});
+
+// Check if logged in
+const snapshot = await mcp__playwright__browser_snapshot();
+// Look for channel sidebar vs login page
+```
+
+Save config:
+
+```json
+{
+  "slack": {
+    "connection": "playwright",
+    "workspace": "mycompany.slack.com",
+    "playwright": { "profile": "default", "headless": false },
+    "vipPeople": [],
+    "channels": []
+  }
+}
+```
+
+### Success Message (Playwright)
+
+```
+Slack connected via Playwright!
+
+Workspace: mycompany.slack.com
+
+Your statusline will now show:
+- Unread message counts
+- Alerts for VIP messages
+
+Playwright will open a browser when refreshing Slack data.
+Set "headless": true in config for invisible operation.
+
+Use /hub-ack to interact with Slack alerts.
+```
+
+---
+
+## API Setup (Legacy)
+
+### Step 2d: Introduction
+
+```
+## API Token Setup
+
+This method extracts browser session tokens manually.
+
+Note: This is the least reliable method.
+- Tokens expire frequently (hours to days)
+- Requires manual re-extraction when expired
+
+Consider using Chrome or Playwright instead if possible.
+```
+
+```
+question: "Do you want to proceed with API token extraction?"
+header: "API Mode"
+options:
+  - label: "Yes, extract tokens"
+    description: "Show extraction instructions"
+  - label: "Try a different method"
+    description: "Go back to connection selection"
+```
+
+### Step 3d: Guide Through Extraction
 
 ```
 ## Extracting Slack Credentials
@@ -55,42 +406,24 @@ Press F12 (Windows/Linux) or Cmd+Opt+I (Mac)
 ### Step 3: Get the `d` cookie
 1. Go to the **Application** tab (Chrome) or **Storage** tab (Firefox)
 2. Expand **Cookies** in the left sidebar
-3. Click on your Slack domain (e.g., mycompany.slack.com)
+3. Click on your Slack domain
 4. Find the cookie named `d`
 5. Copy its entire Value (starts with `xoxd-`)
 
 ### Step 4: Get the `xoxc` token
 1. Go to the **Network** tab
 2. Refresh the page (F5 or Cmd+R)
-3. Click on any request to slack.com (e.g., `api/client.counts`)
+3. Click on any request to slack.com
 4. Look in **Request Headers** for `Authorization: Bearer xoxc-...`
-5. Copy the token (everything after "Bearer ", starts with `xoxc-`)
-
-Alternative for xoxc token:
-1. Go to **Application** > **Local Storage** > your Slack domain
-2. Search for `xoxc-` in the values
+5. Copy the token (everything after "Bearer ")
 
 ### Step 5: Note your workspace URL
-This is the domain you see in your browser (e.g., `mycompany.slack.com`)
-
-Come back when you have all three pieces!
+This is the domain (e.g., `mycompany.slack.com`)
 ```
 
-Then ask:
-```
-question: "Do you have your credentials ready?"
-header: "Ready?"
-options:
-  - label: "Yes, I have them"
-    description: "Proceed to enter credentials"
-  - label: "Not yet"
-    description: "Cancel setup for now"
-```
+### Step 4d: Collect Credentials
 
-### Step 2b: Collect Workspace URL
-
-Ask for workspace URL:
-
+Ask for workspace:
 ```
 question: "Enter your Slack workspace URL (e.g., mycompany.slack.com):"
 header: "Workspace"
@@ -99,27 +432,7 @@ options:
     description: "I'll enter the workspace URL in the 'Other' field"
 ```
 
-Validate:
-- Remove `https://` prefix if present
-- Remove trailing slashes
-- Should be a valid domain format
-
-Save to `~/.claude/slack-credentials.json`:
-```json
-{
-  "workspace": "mycompany.slack.com"
-}
-```
-
-Set file permissions:
-```bash
-chmod 600 ~/.claude/slack-credentials.json
-```
-
-### Step 3: Collect d Cookie
-
-Ask for the d cookie:
-
+Ask for d cookie:
 ```
 question: "Paste the `d` cookie value (starts with xoxd-):"
 header: "Cookie"
@@ -128,14 +441,7 @@ options:
     description: "I'll paste the cookie in the 'Other' field"
 ```
 
-Validate:
-- Must start with `xoxd-`
-- Must be non-empty after prefix
-
-### Step 4: Collect xoxc Token
-
-Ask for the xoxc token:
-
+Ask for xoxc token:
 ```
 question: "Paste the xoxc token (starts with xoxc-):"
 header: "Token"
@@ -144,87 +450,150 @@ options:
     description: "I'll paste the token in the 'Other' field"
 ```
 
-Validate:
-- Must start with `xoxc-`
-- Must be non-empty after prefix
+### Step 5d: Validate and Save
 
-### Step 5: Save Credentials
+Validate formats:
+- Workspace: should be `xxx.slack.com`
+- Cookie: must start with `xoxd-`
+- Token: must start with `xoxc-`
 
-Save token and cookie to `~/.claude/slack-token.json`:
+Test with auth.test:
 
 ```bash
-save_slack_token() {
-  local token="$1"
-  local cookie="$2"
-  local token_file="$HOME/.claude/slack-token.json"
+curl -s "https://slack.com/api/auth.test" \
+  -H "Authorization: Bearer $token" \
+  --cookie "d=$cookie"
+```
 
-  # Assume token valid for 6 hours
-  local expires_at=$(($(date +%s) + 21600))
+Save credentials:
 
-  cat > "$token_file" << EOF
+```bash
+# ~/.claude/slack-credentials.json
+echo '{"workspace": "'$workspace'"}' > ~/.claude/slack-credentials.json
+chmod 600 ~/.claude/slack-credentials.json
+
+# ~/.claude/slack-token.json
+expires_at=$(($(date +%s) + 21600))
+cat > ~/.claude/slack-token.json << EOF
 {
   "token": "$token",
   "cookie": "$cookie",
   "expires_at": $expires_at
 }
 EOF
+chmod 600 ~/.claude/slack-token.json
+```
 
-  chmod 600 "$token_file"
+Update config:
+
+```json
+{
+  "slack": {
+    "connection": "api",
+    "workspace": "mycompany.slack.com",
+    "vipPeople": [],
+    "channels": []
+  }
 }
 ```
 
-### Step 6: Verify Credentials
-
-Test the connection using auth.test:
-
-```bash
-verify_slack() {
-  local token_file="$HOME/.claude/slack-token.json"
-  local token=$(jq -r '.token' "$token_file")
-  local cookie=$(jq -r '.cookie' "$token_file")
-
-  curl -s "https://slack.com/api/auth.test" \
-    -H "Authorization: Bearer $token" \
-    --cookie "d=$cookie"
-}
-```
-
-Check response:
-- If `ok: true`: Extract user info for success message
-- If `ok: false`: Show error and ask to retry
-
-### Step 7: Success Message
-
-Show completion message with user info:
+### Success Message (API)
 
 ```
-Slack connected!
+Slack connected via API!
 
 Workspace: My Company
 User: pavel (@pavel)
-User ID: U123ABC
-
-Available operations:
-- List channels: slack_list_channels()
-- Read messages: slack_get_messages(channel_id)
-- Post messages: slack_post_message(channel_id, text)
-- Search: slack_search(query)
 
 Note: The xoxc token may expire. If you get auth errors,
 run /hub-setup-slack again to refresh credentials.
+
+Use /hub-ack to interact with Slack alerts.
 ```
+
+---
+
+## Alert Configuration
+
+After any successful setup:
+
+```
+question: "Would you like to configure alert triggers?"
+header: "Alerts"
+options:
+  - label: "Yes, configure now"
+    description: "Set up VIP people and watched channels"
+  - label: "Skip for now"
+    description: "Configure later in /hub"
+```
+
+If configuring:
+
+```
+question: "Enter VIP people (comma-separated usernames to alert on DMs):"
+header: "VIP People"
+options:
+  - label: "Continue..."
+    description: "e.g., @boss, @tech-lead"
+```
+
+```
+question: "Enter watched channels (comma-separated, alerts on any message):"
+header: "Channels"
+options:
+  - label: "Continue..."
+    description: "e.g., #incidents, #deployments"
+```
+
+---
+
+## Playwright Troubleshooting
+
+```
+## Playwright Troubleshooting
+
+If you're having issues with Playwright:
+
+1. **Clear Playwright cache completely:**
+
+   Linux:
+   rm -rf ~/.cache/ms-playwright
+
+   macOS:
+   rm -rf ~/Library/Caches/ms-playwright
+
+2. **Reinstall Playwright browsers:**
+   npx playwright install chromium
+
+3. **Re-login to Slack:**
+   npx playwright open --save-storage=~/.claude/playwright-profile https://mycompany.slack.com
+
+4. **Restart Claude Code**
+
+5. **Run /hub-setup-slack again**
+
+Common issues:
+- "Browser not found" → Run npx playwright install
+- "Session expired" → Re-login via the command above
+- "Timeout" → Check your internet connection
+```
+
+---
 
 ## Error Handling
 
-### Invalid Cookie Format
+### Slack MCP Blocked
 
 ```
-The cookie doesn't appear to be valid.
+Slack MCP connection failed.
 
-Expected format: xoxd-xxx...
-Got: [first 20 chars of input]
+This is common in corporate environments that block external connections.
 
-Make sure you copied the entire value of the `d` cookie from DevTools.
+Recommended alternatives:
+1. Chrome browser tab - Use /hub-setup-slack and select "Chrome browser tab"
+2. Playwright - Automated browser that works offline
+
+Both methods work within your local network without external MCP calls.
 ```
 
 ### Invalid Token Format
@@ -245,39 +614,16 @@ Authentication failed: [error message]
 
 Common issues:
 - Token or cookie expired (extract fresh ones from browser)
-- Workspace URL incorrect (check the URL matches where you extracted credentials)
-- Your session was logged out (log back into Slack in browser)
+- Workspace URL incorrect
+- Your session was logged out
 
 Try extracting fresh credentials and running /hub-setup-slack again.
 ```
 
-### Token Refresh Failed
-
-If token refresh fails during normal operation:
-
-```
-Could not refresh Slack token.
-
-The d cookie may have expired (this is rare, usually lasts 1+ year).
-
-To fix:
-1. Log into Slack in your browser
-2. Run /hub-setup-slack to extract fresh credentials
-```
-
 ## Security Notes
 
-- Credentials are stored with 600 permissions (owner read/write only)
-- xoxc + d cookie = full user access (be careful what you share)
-- The d cookie is long-lived (1+ year), xoxc token expires faster (hours to days)
-- Tokens are stored in `~/.claude/` which should be user-private
-- Never log tokens or share them
-
-## Token Lifecycle
-
-| Credential | Lifespan | Refresh Method |
-|------------|----------|----------------|
-| d cookie | ~1 year | Manual re-extraction from browser |
-| xoxc token | Hours to days | Automatic refresh using d cookie |
-
-The setup saves both. When xoxc expires, the tool can automatically refresh it using the d cookie. When the d cookie expires (rare), you need to re-run the setup wizard.
+- MCP mode: Uses official Slack OAuth
+- Chrome mode: Uses your existing browser session
+- Playwright mode: Session saved to `~/.claude/playwright-profile/`
+- API mode: Credentials stored with 600 permissions (owner read/write only)
+- xoxc + d cookie = full user access (protect these credentials)
