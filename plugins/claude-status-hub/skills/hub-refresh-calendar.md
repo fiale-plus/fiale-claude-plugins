@@ -1,96 +1,119 @@
-# Hub Refresh - Calendar (Browser-Based)
+# Hub Refresh - Calendar
 
-Refresh calendar data from Google Calendar browser tab via Chrome MCP.
+Refresh calendar data using the configured connection method (Chrome MCP or Playwright).
+
+## Connection Detection
+
+Check `calendar.connection` in config. If "auto", detect available method.
+
+See `connection-detect.md` for detection logic and `tool-gcalendar.md` for implementation details.
 
 ## Config Structure
 
-Calendar config in `~/.claude/status-config.json`:
+See `connection-detect.md` for full config schema.
 
-```json
-{
-  "calendar": {
-    "connection": "chrome",
-    "chrome": { "tabId": 12345 },
-    "alertMinutesBefore": 5,
-    "alertWithDocsBefore": 10,
-    "lateMessageTo": "organizer"
+## Refresh Flow
+
+```javascript
+async function refreshCalendar(config) {
+  // 1. Detect connection method
+  const connection = await detectCalendarConnection(config);
+
+  if (connection.method === 'disabled') {
+    return { disabled: true };
   }
+
+  if (connection.method === 'unavailable') {
+    return { error: 'No connection available. Run /hub-setup-gcalendar' };
+  }
+
+  // 2. Get events via appropriate method
+  let events;
+  if (connection.method === 'chrome') {
+    events = await refreshViaChrome(config, connection.tabId);
+  } else if (connection.method === 'playwright') {
+    events = await refreshViaPlaywright(config);
+  }
+
+  // 3. Process and return
+  return processCalendarData(events, config);
 }
 ```
 
-## Prerequisites
+## Chrome MCP Mode
 
-- User must have Google Calendar open in a browser tab
+### Prerequisites
+
+- Google Calendar open in a browser tab
 - Tab ID stored in `calendar.chrome.tabId`
-- Chrome MCP must be available
+- Chrome MCP available
 
-## Data Extraction
+### Data Extraction
 
-Run via `mcp__claude-in-chrome__javascript_tool` on calendar tab:
+See `tool-gcalendar.md` for the JavaScript extraction script.
+
+### Usage
 
 ```javascript
-(() => {
-  const events = [];
-  const now = new Date();
-  const today = now.toISOString().split('T')[0];
+async function refreshViaChrome(config, tabId) {
+  // Verify tab context
+  const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: false });
 
-  // Try to find events in the day view or schedule view
-  const eventEls = document.querySelectorAll('[data-eventid], [data-eventchip]');
+  if (!tabId) {
+    throw new Error('Calendar tab not configured. Run /hub-setup-gcalendar');
+  }
 
-  eventEls.forEach(el => {
-    try {
-      // Get event title
-      const title = el.getAttribute('aria-label') ||
-                    el.innerText?.split('\\n')[0] ||
-                    'Unknown Event';
-
-      // Try to extract time from aria-label or data attributes
-      const ariaLabel = el.getAttribute('aria-label') || '';
-      const timeMatch = ariaLabel.match(/(\\d{1,2}(?::\\d{2})?\\s*(?:AM|PM|am|pm)?)/);
-
-      // Look for meeting links
-      const meetLink = el.querySelector('a[href*="meet.google.com"]')?.href ||
-                       el.querySelector('a[href*="zoom.us"]')?.href || '';
-
-      // Try to get event ID for deduplication
-      const eventId = el.getAttribute('data-eventid') ||
-                      el.getAttribute('data-eventchip') ||
-                      title.substring(0, 20);
-
-      if (title && title !== 'Unknown Event') {
-        events.push({
-          id: eventId,
-          title: title.substring(0, 50),
-          time: timeMatch ? timeMatch[1] : null,
-          meetingLink: meetLink,
-          hasAttachments: el.querySelector('[aria-label*="attachment"]') !== null
-        });
-      }
-    } catch (e) {
-      // Skip malformed events
-    }
+  // Execute extraction
+  const events = await mcp__claude-in-chrome__javascript_tool({
+    action: 'javascript_exec',
+    tabId: tabId,
+    text: extractionScript
   });
 
-  // Deduplicate by ID
-  const seen = new Set();
-  return events.filter(e => {
-    if (seen.has(e.id)) return false;
-    seen.add(e.id);
-    return true;
-  }).slice(0, 10);
-})()
+  return events;
+}
+```
+
+## Playwright Mode
+
+### Prerequisites
+
+- Playwright MCP installed
+- Google account logged in via persistent profile
+
+### Usage
+
+```javascript
+async function refreshViaPlaywright(config) {
+  // Navigate to Google Calendar
+  await mcp__playwright__browser_navigate({
+    url: 'https://calendar.google.com'
+  });
+
+  // Wait for events to load
+  await mcp__playwright__browser_wait({
+    selector: '[data-eventid]',
+    timeout: 10000
+  });
+
+  // Execute extraction script
+  const events = await mcp__playwright__browser_evaluate({
+    expression: extractionScript
+  });
+
+  return events;
+}
 ```
 
 ## Time Parsing
 
-Convert extracted time strings to proper timestamps:
+Convert extracted time strings to timestamps:
 
 ```javascript
-function parseEventTime(timeStr, baseDate) {
+function parseEventTime(timeStr, baseDate = new Date()) {
   if (!timeStr) return null;
 
-  // Handle formats like "2:30 PM", "14:30", "2pm"
-  const match = timeStr.match(/(\\d{1,2})(?::(\\d{2}))?\\s*(AM|PM|am|pm)?/);
+  const match = timeStr.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM|am|pm)?/);
   if (!match) return null;
 
   let hours = parseInt(match[1], 10);
@@ -106,74 +129,78 @@ function parseEventTime(timeStr, baseDate) {
 }
 ```
 
-## Alert Detection
-
-For each event, check if alert should trigger:
+## Process Calendar Data
 
 ```javascript
-const now = Date.now();
-const alertMinutes = config.calendar.alertMinutesBefore || 5;
-const alertWithDocs = config.calendar.alertWithDocsBefore || 10;
+function processCalendarData(events, config) {
+  const now = Date.now();
+  const alertMinutes = config.calendar?.alertMinutesBefore || 5;
+  const alertWithDocs = config.calendar?.alertWithDocsBefore || 10;
 
-const shouldAlert = events.some(event => {
-  if (!event.startTime) return false;
-  const diff = (event.startTime - now) / 60000; // minutes until start
+  // Parse times and filter future events
+  const parsed = events
+    .map(e => ({
+      ...e,
+      startTime: parseEventTime(e.time)
+    }))
+    .filter(e => e.startTime && e.startTime > now)
+    .sort((a, b) => a.startTime - b.startTime);
 
-  // Alert based on timing
-  const threshold = event.hasAttachments ? alertWithDocs : alertMinutes;
-  return diff > 0 && diff <= threshold;
-});
-```
+  const nextMeeting = parsed[0] || null;
 
-Set `hasAlert: true` if any upcoming meeting is within the alert window.
+  // Check for alerts
+  let hasAlert = false;
+  if (nextMeeting) {
+    const minutesUntil = (nextMeeting.startTime - now) / 60000;
+    const threshold = nextMeeting.hasAttachments ? alertWithDocs : alertMinutes;
+    hasAlert = minutesUntil > 0 && minutesUntil <= threshold;
+  }
 
-## Detecting Next Meeting
-
-Find the next upcoming meeting:
-
-```javascript
-const upcoming = events
-  .filter(e => e.startTime && e.startTime > now)
-  .sort((a, b) => a.startTime - b.startTime)[0];
+  return {
+    events: parsed.slice(0, 5),
+    nextMeeting: nextMeeting,
+    hasAlert: hasAlert
+  };
+}
 ```
 
 ## Output Format
 
-Return for bridge:
+Return for bridge/statusline:
 
 ```json
 {
   "site": "calendar",
   "icon": "📅",
-  "title": "<meeting title truncated>",
-  "detail": "in <N>m" or "now" or "started <N>m ago",
-  "hasAlert": true,
+  "title": "Team Standup",
+  "detail": "in 15m",
+  "hasAlert": false,
   "data": {
     "startTime": 1234567890000,
     "meetingLink": "https://meet.google.com/...",
-    "organizer": "<organizer if available>"
+    "organizer": "alice@company.com"
   }
 }
 ```
 
 Icon options:
 - `📅` = upcoming meeting
-- `🔴` = meeting starting now or missed
+- `🔴` = meeting starting now or alert active
 - `✓` = no upcoming meetings
 
 ## Update Config
 
-Store the detected meetings for ack:
+Store detected meetings for ack:
 
 ```json
 {
   "calendar": {
     "lastSeen": {
       "nextMeeting": {
-        "title": "...",
+        "title": "Team Standup",
         "startTime": 1234567890000,
-        "meetingLink": "...",
-        "organizer": "..."
+        "meetingLink": "https://meet.google.com/...",
+        "organizer": "alice@company.com"
       }
     }
   }
@@ -182,18 +209,47 @@ Store the detected meetings for ack:
 
 ## Error Handling
 
+### Chrome Tab Issues
+
 If tab is unavailable or JS execution fails:
+
+```javascript
+if (connection.needsSetup) {
+  return { error: 'Calendar tab not configured. Run /hub-setup-gcalendar' };
+}
+```
+
+### Playwright Issues
+
+If Playwright fails (not logged in, timeout):
+
+```javascript
+try {
+  events = await refreshViaPlaywright(config);
+} catch (e) {
+  return { error: `Playwright error: ${e.message}. Run /hub-setup-gcalendar` };
+}
+```
+
+### Fallback to Text Extraction
+
+If DOM-based approach fails, try reading page text:
+
+```javascript
+const pageText = await mcp__claude-in-chrome__get_page_text({ tabId });
+// Parse text for meeting information as backup
+```
+
+## Bridge Update
+
+Update the bridge file with calendar status:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh calendar '{"icon":"📅","title":"Team Standup","detail":"in 15m"}'
+```
+
+Or on error:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh --error "Calendar: Tab not accessible"
 ```
-
-## Alternative: Fallback to Text Extraction
-
-If the DOM-based approach fails, try reading page text:
-
-```
-mcp__claude-in-chrome__get_page_text(tabId: calendar.chrome.tabId)
-```
-
-Then parse the text for meeting information.

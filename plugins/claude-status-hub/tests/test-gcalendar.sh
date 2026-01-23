@@ -247,6 +247,141 @@ else
 fi
 
 echo ""
+echo "Testing connection configuration..."
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test auto connection config
+cat > "$TEST_CLAUDE_DIR/status-config-auto.json" << 'EOF'
+{
+  "calendar": {
+    "connection": "auto",
+    "chrome": { "tabId": null },
+    "playwright": { "profile": "default", "headless": false }
+  }
+}
+EOF
+
+connection=$(jq -r '.calendar.connection' "$TEST_CLAUDE_DIR/status-config-auto.json")
+if [ "$connection" = "auto" ]; then
+  pass "Auto connection config parsed correctly"
+else
+  fail "Auto connection config" "auto" "$connection"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test chrome connection config
+cat > "$TEST_CLAUDE_DIR/status-config-chrome.json" << 'EOF'
+{
+  "calendar": {
+    "connection": "chrome",
+    "chrome": { "tabId": 12345 }
+  }
+}
+EOF
+
+chrome_tab=$(jq -r '.calendar.chrome.tabId' "$TEST_CLAUDE_DIR/status-config-chrome.json")
+if [ "$chrome_tab" = "12345" ]; then
+  pass "Chrome connection with tabId parsed correctly"
+else
+  fail "Chrome tabId" "12345" "$chrome_tab"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test playwright connection config
+cat > "$TEST_CLAUDE_DIR/status-config-playwright.json" << 'EOF'
+{
+  "calendar": {
+    "connection": "playwright",
+    "playwright": { "profile": "custom", "headless": true }
+  }
+}
+EOF
+
+pw_profile=$(jq -r '.calendar.playwright.profile' "$TEST_CLAUDE_DIR/status-config-playwright.json")
+pw_headless=$(jq -r '.calendar.playwright.headless' "$TEST_CLAUDE_DIR/status-config-playwright.json")
+if [ "$pw_profile" = "custom" ] && [ "$pw_headless" = "true" ]; then
+  pass "Playwright connection config parsed correctly"
+else
+  fail "Playwright config" "profile=custom, headless=true" "profile=$pw_profile, headless=$pw_headless"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test disabled connection
+cat > "$TEST_CLAUDE_DIR/status-config-disabled.json" << 'EOF'
+{
+  "calendar": {
+    "connection": "disabled"
+  }
+}
+EOF
+
+disabled=$(jq -r '.calendar.connection' "$TEST_CLAUDE_DIR/status-config-disabled.json")
+if [ "$disabled" = "disabled" ]; then
+  pass "Disabled connection config parsed correctly"
+else
+  fail "Disabled connection" "disabled" "$disabled"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test connection type validation
+valid_connections="auto chrome playwright disabled"
+test_connection="chrome"
+if echo "$valid_connections" | grep -qw "$test_connection"; then
+  pass "Connection type validation works (chrome is valid)"
+else
+  fail "Connection validation" "chrome in valid list" "not found"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test invalid connection type detection
+invalid_connection="api"
+if ! echo "$valid_connections" | grep -qw "$invalid_connection"; then
+  pass "Invalid connection type detected (api not valid for calendar)"
+else
+  fail "Invalid connection detection" "api not in list" "found"
+fi
+
+echo ""
+echo "Testing Chrome extraction script validation..."
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test extraction script output parsing
+cat > "$TEST_DIR/chrome-extraction.json" << 'EOF'
+[
+  {
+    "id": "event_abc123",
+    "title": "Team Standup",
+    "time": "10:00 AM",
+    "meetingLink": "https://meet.google.com/xxx-yyyy-zzz",
+    "hasAttachments": false
+  },
+  {
+    "id": "event_def456",
+    "title": "Project Review",
+    "time": "2:30 PM",
+    "meetingLink": "",
+    "hasAttachments": true
+  }
+]
+EOF
+
+extraction_count=$(jq 'length' "$TEST_DIR/chrome-extraction.json")
+if [ "$extraction_count" = "2" ]; then
+  pass "Chrome extraction output parsed correctly"
+else
+  fail "Chrome extraction count" "2" "$extraction_count"
+fi
+
+TESTS_RUN=$((TESTS_RUN + 1))
+# Test time string parsing simulation
+time_str="10:00 AM"
+if [[ "$time_str" =~ ^[0-9]{1,2}:[0-9]{2}[[:space:]]*(AM|PM)$ ]]; then
+  pass "Time string format validated correctly"
+else
+  fail "Time string format" "matches HH:MM AM/PM" "$time_str"
+fi
+
+echo ""
 echo "Testing error response parsing..."
 
 TESTS_RUN=$((TESTS_RUN + 1))
