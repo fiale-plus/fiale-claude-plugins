@@ -148,32 +148,77 @@ If user selects "Join meeting":
 
 If user selects a late message option:
 
-1. Read Slack config to find organizer:
+1. **Read config for Slack tab**:
    ```bash
-   cat ~/.claude/status-config.json | jq '.slack'
+   cat ~/.claude/status-config.json | jq '.slack.chrome.tabId'
    ```
 
-2. If Slack browser tab available, compose DM:
-   - Navigate to Slack DM with organizer
-   - Type message (but don't send - user confirms)
+2. **If Slack tab configured** (`slack.chrome.tabId` exists):
 
-3. If no Slack, show message to copy:
-   ```
-   Message for <organizer>:
-   "<message text>"
+   a. Use Chrome MCP to navigate to DM:
+      ```
+      mcp__claude-in-chrome__navigate(
+        url: "slack://user?team=<team>&id=<user>",
+        tabId: slack.chrome.tabId
+      )
+      ```
 
-   [Copy to clipboard] [Cancel]
-   ```
+      OR use Slack's web DM URL:
+      ```
+      mcp__claude-in-chrome__navigate(
+        url: "https://<workspace>.slack.com/messages/<user-id>",
+        tabId: slack.chrome.tabId
+      )
+      ```
+
+   b. Type the message (but DON'T send - let user confirm):
+      ```
+      mcp__claude-in-chrome__form_input(
+        ref: <message-input-ref>,
+        value: "<late message>",
+        tabId: slack.chrome.tabId
+      )
+      ```
+
+   c. Tell user:
+      ```
+      Message typed in Slack. Press Enter to send, or edit as needed.
+      ```
+
+3. **If no Slack tab** (fallback to clipboard):
+
+   a. Copy message to clipboard:
+      ```bash
+      echo "<late message>" | pbcopy  # macOS
+      # OR
+      echo "<late message>" | xclip -selection clipboard  # Linux
+      ```
+
+   b. Show user what was copied:
+      ```
+      📋 Message copied to clipboard:
+
+         "<late message>"
+
+      Paste this to <organizer> in Slack/Teams/email.
+      ```
+
+**Note:** Organizer identification uses the `organizer` field from calendar event data.
+If organizer email doesn't match a known Slack user, fall back to clipboard.
 
 ### Custom Message
 
 If user selects custom message:
-```
-Enter message for <organizer>:
-> [user input]
 
-[Send] [Cancel]
-```
+1. Ask for the message:
+   ```
+   Enter your message for <organizer>:
+   > [user input via AskUserQuestion with text input]
+   ```
+
+2. Once user provides message, use the same DM flow as above:
+   - If Slack tab: type in Slack
+   - If no Slack: copy to clipboard
 
 ## Step 4: Context Handoff
 

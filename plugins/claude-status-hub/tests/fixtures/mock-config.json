@@ -21,6 +21,21 @@
       }
     }
   ],
+  "calendar": {
+    "connection": "chrome",
+    "chrome": { "tabId": 12345 },
+    "alertMinutesBefore": 5,
+    "alertWithDocsBefore": 10,
+    "lateMessageTo": "organizer",
+    "lastSeen": {
+      "nextMeeting": {
+        "title": "Daily Standup",
+        "startTime": 1705868400000,
+        "meetingLink": "https://meet.google.com/abc-defg-hij",
+        "organizer": "alice@example.com"
+      }
+    }
+  },
   "contextDisplay": "percent",
   "contextAlertThreshold": 80
 }

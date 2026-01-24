@@ -20,6 +20,18 @@
       "title": "PR #456",
       "detail": "approved",
       "hasAlert": false
+    },
+    {
+      "site": "calendar",
+      "icon": "📅",
+      "title": "Daily Standup",
+      "detail": "in 3m",
+      "hasAlert": true,
+      "data": {
+        "startTime": 1705500180000,
+        "meetingLink": "https://meet.google.com/abc-defg-hij",
+        "organizer": "alice@example.com"
+      }
     }
   ]
 }

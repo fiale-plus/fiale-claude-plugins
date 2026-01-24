@@ -105,7 +105,11 @@ Add permissions for background refresh (allows status updates without prompts):
       "Bash(gh pr view:*)",
       "Bash(cat ${HOME}/.claude/status-config.json)",
       "Bash(${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh *)",
-      "mcp__plugin_sentry_sentry__search_issues"
+      "mcp__plugin_sentry_sentry__search_issues",
+      "mcp__claude-in-chrome__javascript_tool",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "mcp__claude-in-chrome__navigate",
+      "mcp__claude-in-chrome__get_page_text"
     ]
   }
 }
@@ -158,6 +162,17 @@ Handle config files carefully - **never lose user data**:
      config.contextAlertThreshold = 80;
    }
 
+   // v1.1 → v1.2: Add calendar config if missing
+   if (!config.calendar) {
+     config.calendar = {
+       connection: "disabled",
+       chrome: { tabId: null },
+       alertMinutesBefore: 5,
+       alertWithDocsBefore: 10,
+       lateMessageTo: "organizer"
+     };
+   }
+
    // Preserve all existing foreground items and their lastSeen state
    ```
 
@@ -189,7 +204,62 @@ Old daemons (pre-v1.0.4) don't have auto-death and will run forever. Detect and 
    - Track that cleanup happened for the confirmation message
 4. The new daemon will spawn automatically via SessionStart hook
 
-### Step 9: Confirm Setup
+### Step 9: Configure Calendar (Optional)
+
+Ask if user wants calendar meeting alerts:
+
+```
+Would you like to enable Google Calendar meeting alerts?
+
+This will show upcoming meetings in your statusline and let you
+take actions (join, send "running late" messages) via /hub-ack.
+
+[1] Yes, set up calendar (Recommended)
+[2] Skip for now
+```
+
+If user selects "Yes":
+
+1. **Check Chrome MCP availability**:
+   - Verify `mcp__claude-in-chrome__tabs_context_mcp` is available
+   - If not: "Calendar requires the Claude in Chrome extension. Install it first, then run /hub-setup again."
+
+2. **Get calendar tab**:
+   ```
+   Please open Google Calendar in Chrome, then press Enter.
+
+   (The calendar tab should show your schedule view - day, week, or month)
+   ```
+
+3. **Find the calendar tab**:
+   - Use `mcp__claude-in-chrome__tabs_context_mcp` to list tabs
+   - Look for tab with URL containing `calendar.google.com`
+   - If not found, ask user to confirm it's open
+
+4. **Store tab ID and enable calendar**:
+   ```javascript
+   config.calendar = {
+     connection: "chrome",
+     chrome: { tabId: <found-tab-id> },
+     alertMinutesBefore: 5,
+     alertWithDocsBefore: 10,
+     lateMessageTo: "organizer"
+   };
+   ```
+
+5. **Confirm**:
+   ```
+   Calendar configured! Tab ID: <id>
+
+   You'll get alerts for meetings starting in 5 minutes
+   (10 minutes for meetings with attachments to review).
+   ```
+
+If user selects "Skip":
+- Keep `calendar.connection: "disabled"` (set during migration)
+- Inform: "You can enable calendar later with /hub-setup"
+
+### Step 10: Confirm Setup
 
 Say:
 ```
@@ -197,11 +267,14 @@ Status Hub configured!
 
 Base prompt: <describe what was preserved or "default">
 <if legacy daemon was killed: "Cleaned up legacy daemon (pre-auto-death version)">
+<if calendar enabled: "Calendar: Enabled (alerts 5min before meetings)">
+<if calendar disabled: "Calendar: Disabled (enable anytime with /hub-setup)">
 
 Your statusline will now show:
 - Git branch and dirty state
 - Music playback (via /hub-play)
 - PR status (via /hub <pr-url>)
+- Meeting alerts (via /hub-ack) [if calendar enabled]
 - Custom services (via /hub-custom)
 
 Restart Claude Code to apply the new statusline.
