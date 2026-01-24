@@ -95,7 +95,7 @@ docs/config-schema.md             # Config reference
 
 ---
 
-## v1.2.0 - Calendar Integration
+## v1.2.0 - Calendar Integration (Completed)
 
 **Focus**: Meeting alerts with time-aware wizards
 
@@ -156,9 +156,11 @@ skills/hub-refresh-calendar.md    # Calendar data refresh (exists)
 
 ---
 
-## v1.3.0 - Smart Focus Mode
+## v1.3.0 - Smart Focus Mode (Current)
 
 **Focus**: Calendar-aware focus with meeting conflict handling
+
+**Status**: Implemented
 
 ### Features
 
@@ -207,9 +209,18 @@ skills/hub-refresh-calendar.md    # Calendar data refresh (exists)
 
 ### Files
 ```
-skills/hub-focus.md               # Enhanced focus mode
+skills/hub-focus.md               # Enhanced focus mode with Slack status
 skills/hub-ack-focus.md           # Focus/break contextual actions
+skills/tool-slack.md              # Added status set/clear APIs
+bin/refresh-daemon.sh             # Added break reminder check
+tests/test-focus.sh               # Focus mode test suite (19 tests)
 ```
+
+### Implementation Notes
+- Slack status integration via MCP, Chrome, and API modes
+- Break reminders trigger when focus >= 75min with 15min+ gap before next meeting
+- hub-ack routing updated to handle focus alerts
+- Daemon checks focus duration during light refresh cycle
 
 ---
 
