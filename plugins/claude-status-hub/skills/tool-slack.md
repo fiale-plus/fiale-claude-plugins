@@ -486,6 +486,100 @@ async function getSlackData(config) {
 | invalid_auth | `api` | Token expired; re-extract credentials |
 | ratelimited | all | Wait and retry |
 
+---
+
+## Setting Slack Status
+
+### Slack MCP Mode
+
+```javascript
+// Set status with emoji and text
+await mcp__slack__set_status({
+  status_text: "Deep focus until 3pm",
+  status_emoji: ":dart:",
+  status_expiration: Math.floor(Date.now() / 1000) + 7200 // 2 hours
+});
+
+// Clear status
+await mcp__slack__set_status({
+  status_text: "",
+  status_emoji: ""
+});
+```
+
+### Chrome MCP Mode
+
+Navigate to Slack and set via DOM interaction:
+
+```javascript
+// 1. Click profile button to open menu
+await mcp__claude-in-chrome__find({
+  tabId: tabId,
+  query: "profile button or avatar"
+});
+
+// 2. Click "Update your status" option
+await mcp__claude-in-chrome__find({
+  tabId: tabId,
+  query: "update your status button"
+});
+
+// 3. Find status input field and set text
+await mcp__claude-in-chrome__form_input({
+  tabId: tabId,
+  ref: statusInputRef,
+  value: "🎯 Deep focus until 3pm"
+});
+
+// 4. Click save/done button
+await mcp__claude-in-chrome__find({
+  tabId: tabId,
+  query: "save status button"
+});
+```
+
+For clearing status, click the "Clear status" option in the status picker.
+
+### API Mode
+
+```bash
+slack_set_status() {
+  local emoji="$1"
+  local text="$2"
+  local expiry="$3"  # Unix timestamp
+  local token=$(slack_get_token) || return 1
+  local cookie=$(jq -r '.cookie' "$HOME/.claude/slack-token.json")
+
+  local payload=$(jq -n \
+    --arg emoji "$emoji" \
+    --arg text "$text" \
+    --argjson expiry "${expiry:-0}" \
+    '{profile: {status_emoji: $emoji, status_text: $text, status_expiration: $expiry}}')
+
+  curl -s -X POST "https://slack.com/api/users.profile.set" \
+    -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    --cookie "d=$cookie" \
+    -d "$payload"
+}
+
+slack_clear_status() {
+  slack_set_status "" "" 0
+}
+```
+
+### Status with Expiration
+
+All methods support automatic expiration:
+
+| Mode | Expiration Support |
+|------|-------------------|
+| MCP | `status_expiration` field (Unix timestamp) |
+| Chrome | Set "Clear after" dropdown in status picker |
+| API | `status_expiration` in profile payload |
+
+---
+
 ## Troubleshooting
 
 For connection issues (MCP blocked, Playwright cache, API token expiry), run `/hub-setup-slack` which includes troubleshooting steps and can reconfigure your connection method.

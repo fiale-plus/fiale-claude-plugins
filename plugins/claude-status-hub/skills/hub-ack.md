@@ -49,9 +49,10 @@ Check for items with `hasAlert: true` in the bridge file.
 2. `github-pr` with conflicts (icon `⚡`)
 3. `github-pr` ready to merge (icon `🚀`)
 4. `calendar` meetings (time-sensitive)
-5. `slack` VIP messages
-6. `github-pr` with review activity
-7. Other alerts
+5. `focus` break reminders or interruptions
+6. `slack` VIP messages
+7. `github-pr` with review activity
+8. Other alerts
 
 ## Step 5: Route to Service-Specific Skill
 
@@ -63,6 +64,7 @@ For each alerting item, check for a service-specific ack skill:
 Service mappings:
 - `github-pr` → `hub-ack-github-pr.md`
 - `calendar` → `hub-ack-calendar.md`
+- `focus` → `hub-ack-focus.md`
 - `slack` → `hub-ack-slack.md`
 - `jira` → `hub-ack-jira.md`
 - `finance` → Just dismiss (no contextual actions)

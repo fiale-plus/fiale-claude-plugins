@@ -176,12 +176,119 @@ Or use `mcp__claude-in-chrome__navigate` to open the quick-add URL.
 
 ### Update Slack Status
 
-Update Slack status if configured (via browser tab):
+Update Slack status if configured. Use connection method from `slack.connection` in config.
+
+#### Slack MCP Mode
 
 ```javascript
-// Navigate to Slack status picker and set status
-// This is a manual process - provide instructions
+// Calculate expiration timestamp
+const focusEndTime = config.focus.endTime;
+const expirationUnix = Math.floor(focusEndTime / 1000);
+
+// Set status with auto-expiration
+await mcp__slack__set_status({
+  status_text: config.focus.defaultStatus.replace('{end_time}', endTimeFormatted),
+  status_emoji: ":dart:",
+  status_expiration: expirationUnix
+});
 ```
+
+#### Chrome MCP Mode
+
+```javascript
+// 1. Get Slack tab
+const tabId = config.slack.chrome.tabId;
+
+// 2. Click profile/avatar button to open menu
+const profileBtn = await mcp__claude-in-chrome__find({
+  tabId: tabId,
+  query: "profile picture button or user avatar in top right"
+});
+await mcp__claude-in-chrome__computer({
+  action: "left_click",
+  ref: profileBtn.elements[0].ref,
+  tabId: tabId
+});
+
+// 3. Wait for menu, then click "Update your status"
+await mcp__claude-in-chrome__computer({ action: "wait", duration: 0.5, tabId });
+const statusOption = await mcp__claude-in-chrome__find({
+  tabId: tabId,
+  query: "Update your status menu item"
+});
+await mcp__claude-in-chrome__computer({
+  action: "left_click",
+  ref: statusOption.elements[0].ref,
+  tabId: tabId
+});
+
+// 4. Wait for status modal, type status text
+await mcp__claude-in-chrome__computer({ action: "wait", duration: 0.5, tabId });
+const statusInput = await mcp__claude-in-chrome__find({
+  tabId: tabId,
+  query: "status text input field"
+});
+await mcp__claude-in-chrome__form_input({
+  tabId: tabId,
+  ref: statusInput.elements[0].ref,
+  value: statusText
+});
+
+// 5. Set emoji (click emoji picker, search for dart/target)
+const emojiBtn = await mcp__claude-in-chrome__find({
+  tabId: tabId,
+  query: "emoji picker button in status modal"
+});
+await mcp__claude-in-chrome__computer({
+  action: "left_click",
+  ref: emojiBtn.elements[0].ref,
+  tabId: tabId
+});
+// Search and select :dart: emoji
+
+// 6. Set "Clear after" to focus end time if available
+// Look for duration dropdown and set appropriately
+
+// 7. Save status
+const saveBtn = await mcp__claude-in-chrome__find({
+  tabId: tabId,
+  query: "Save button in status modal"
+});
+await mcp__claude-in-chrome__computer({
+  action: "left_click",
+  ref: saveBtn.elements[0].ref,
+  tabId: tabId
+});
+```
+
+#### API Mode
+
+```bash
+# Calculate expiration
+focus_end=$(jq -r '.focus.endTime' ~/.claude/status-config.json)
+expiry_unix=$((focus_end / 1000))
+
+# Format end time for display
+end_time_formatted=$(date -r $expiry_unix "+%l:%M %p" | xargs)
+
+# Get status template and substitute
+status_template=$(jq -r '.focus.defaultStatus // "🎯 Deep focus until {end_time}"' ~/.claude/status-config.json)
+status_text="${status_template//\{end_time\}/$end_time_formatted}"
+
+# Set status using tool-slack.md pattern
+slack_set_status ":dart:" "$status_text" "$expiry_unix"
+```
+
+#### Record Status Was Set
+
+After setting status, update config to track it was set:
+
+```bash
+jq '.focus.slackStatusSet = true' ~/.claude/status-config.json > /tmp/config.tmp && \
+  mv /tmp/config.tmp ~/.claude/status-config.json
+```
+
+This allows hub-ack-focus.md to know whether to clear status when ending focus.
 
 ## Step 8: Confirm Focus Mode
 

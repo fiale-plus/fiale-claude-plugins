@@ -56,6 +56,36 @@ The status hub uses a **bridge file architecture**:
 - `UserPromptSubmit` hook triggers refresh on user input
 - `Stop` hook performs final refresh before session ends
 
+### Connection Hierarchy
+
+Services using browser automation follow a connection hierarchy with automatic fallback:
+
+| Service | Priority 1 | Priority 2 | Priority 3 | Priority 4 |
+|---------|------------|------------|------------|------------|
+| Google Calendar | Chrome MCP | Playwright | - | - |
+| Slack | Slack MCP | Chrome MCP | Playwright | API (legacy) |
+
+Detection logic in `skills/connection-detect.md`. Smart skills reference tool skills for extraction.
+
+### Tool/Smart Skill Separation
+
+**Tool skills** (`tool-<service>.md`): Low-level extraction scripts, connection methods, output formats. Reference, don't modify.
+
+**Smart skills** (`hub-<action>.md`, `hub-refresh-<service>.md`, `hub-ack-<service>.md`): High-level contextual logic that uses tool skills.
+
+Separation principle:
+- Tool = HOW to extract data (reusable patterns)
+- Smart = WHAT to do with data (contextual actions)
+
+When adding a new service:
+1. Create `tool-<service>.md` (if unique extraction needed)
+2. Create `hub-refresh-<service>.md` (uses tool skill)
+3. Create `hub-setup-<service>.md` (wizard)
+4. Create `hub-ack-<service>.md` (contextual actions)
+5. Update `connection-detect.md`
+6. Update `hub-ack.md` routing
+7. Update `hub-refresh.md` step
+
 ## Key Conventions
 
 ### Data Sanitization
