@@ -113,14 +113,22 @@ If this fails, inform user that TradingView MCP server needs to be configured.
 After configuration:
 1. Run initial data fetch via `mcp__tradingview__lookup_symbols`
 2. Update `lastSeen` in config with current prices
-3. **Update bridge file `/tmp/status-hub.json`** - add to `foreground[]`:
+3. **Update bridge file `/tmp/status-hub.json`** - set root `timestamp` and add to `foreground[]`:
+
+   **CRITICAL:** Always set root `timestamp` to current time in milliseconds: `$(($(date +%s) * 1000))`
+
    ```json
    {
-     "site": "finance",
-     "icon": "📈",  // or 📉 if negative
-     "title": "AAPL",
-     "detail": "$255.53 +1.2%",
-     "hasAlert": false
+     "timestamp": <current_time_ms>,
+     "foreground": [
+       {
+         "site": "finance",
+         "icon": "📈",
+         "title": "AAPL",
+         "detail": "$255.53 +1.2%",
+         "hasAlert": false
+       }
+     ]
    }
    ```
 4. Inform user: "Finance tracking configured! Your statusline will show: 📈 AAPL $XXX +X.X%"

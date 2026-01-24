@@ -64,9 +64,12 @@ gh pr view <number> --repo <owner>/<repo> --json state,isDraft,reviewDecision,st
 4. Read `~/.claude/status-config.json` for lastSeen state
 5. Update config with new PR(s) in `foreground` array
 6. Write bridge file `/tmp/status-hub.json` - set timestamp at root, preserve `background`, update `foreground` array:
+
+   **CRITICAL:** Generate current timestamp in milliseconds: `$(($(date +%s) * 1000))`
+
    ```json
    {
-     "timestamp": 1705000000000,
+     "timestamp": <current_time_ms>,
      "background": { ... preserve existing ... },
      "foreground": [
        {
@@ -93,9 +96,12 @@ If argument is a service name (`youtube-music`, `spotify`, `gmail`):
 3. Extract status using service-specific JavaScript (see extraction details below)
 4. Update `~/.claude/status-config.json` with `background.service`, `background.tabId`, and extracted details
 5. Write bridge file `/tmp/status-hub.json` - set timestamp at root, update `background`, preserve `foreground`:
+
+   **CRITICAL:** Generate current timestamp in milliseconds: `$(($(date +%s) * 1000))`
+
    ```json
    {
-     "timestamp": 1705000000000,
+     "timestamp": <current_time_ms>,
      "background": {"site": "youtube-music", "icon": ">", "title": "Song", "detail": "Artist"},
      "foreground": [ ... preserve existing array ... ]
    }
