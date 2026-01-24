@@ -257,12 +257,14 @@ if [ -f "$BRIDGE_FILE" ]; then
     # Append 🔁 indicator if autoMerge is enabled
     [ "$FG_AUTO" = "true" ] && FG_ICON="${FG_ICON}🔁"
     FOREGROUND_PART=" ${DIM}›${RESET} ${RED}${FG_ICON} ${FG_TITLE} ${FG_DETAIL}${RESET}"
-    if [ -n "$BG_SITE" ] && [ -n "$BG_ICON" ]; then
+    # Only show background icon if it's a real service (not "off" or malformed)
+    if [ -n "$BG_ICON" ] && [ "$BG_ICON" != "off" ] && [ "$BG_SITE" != "off" ] && [ "$BG_SITE" != "--background" ]; then
       BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON}${RESET}"
     fi
   else
     # IDLE STATE: background expanded, foreground compact (counts)
-    if [ -n "$BG_SITE" ] && [ -n "$BG_TITLE" ]; then
+    # Only show background if it's a real service (not "off" or malformed)
+    if [ -n "$BG_SITE" ] && [ "$BG_SITE" != "off" ] && [ "$BG_SITE" != "--background" ] && [ -n "$BG_TITLE" ]; then
       BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON} ${BG_TITLE:0:25} - ${BG_DETAIL:0:15}${RESET}"
     fi
     if [ "$FG_COUNT" -gt 0 ]; then

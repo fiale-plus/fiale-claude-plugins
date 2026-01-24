@@ -245,12 +245,33 @@ To gather context:
 2. Check git status for recent changes
 3. Read any active todos
 
-## Step 5: Update Config
+## Step 5: Update Config and Bridge
 
 After successful action:
+
+### 5a: Update Config
 - Update `lastSeen.startTime` to current meeting
-- Set `hasAlert: false`
-- Write updated config
+- Set `hasAlert: false` for calendar item in foreground array
+- Write updated config to `~/.claude/status-config.json`
+
+### 5b: Update Bridge Immediately
+
+**CRITICAL**: The statusline reads from the bridge file, not config. You MUST update the bridge immediately or the alert will persist until next refresh cycle.
+
+```bash
+# Read the updated foreground array from config
+FOREGROUND=$(jq -c '.foreground // []' ~/.claude/status-config.json)
+
+# Preserve current background from bridge
+BACKGROUND=$(jq -c '.background // {}' /tmp/status-hub.json)
+BG_SITE=$(echo "$BACKGROUND" | jq -r '.site // "hub"')
+BG_ICON=$(echo "$BACKGROUND" | jq -r '.icon // "✓"')
+BG_TITLE=$(echo "$BACKGROUND" | jq -r '.title // "Status Hub"')
+BG_DETAIL=$(echo "$BACKGROUND" | jq -r '.detail // ""')
+
+# Update bridge with cleared alert state
+${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh "$BG_SITE" "$BG_ICON" "$BG_TITLE" "$BG_DETAIL" --foreground "$FOREGROUND"
+```
 
 ## Extracting Meeting Link from Event Popup
 

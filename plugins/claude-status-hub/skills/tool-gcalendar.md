@@ -36,11 +36,42 @@ Run via `mcp__claude-in-chrome__javascript_tool`:
 
   eventEls.forEach(el => {
     try {
-      // Get event title from aria-label or text content
+      // Get event title from multiple sources
       const ariaLabel = el.getAttribute('aria-label') || '';
-      const title = ariaLabel.split(',')[0] ||
-                    el.innerText?.split('\n')[0] ||
-                    'Unknown Event';
+
+      // Try multiple extraction strategies for title
+      let title = '';
+
+      // 1. First segment of aria-label (before comma) - common format: "Meeting Title, 2:00 PM"
+      const ariaFirstPart = ariaLabel.split(',')[0]?.trim();
+      if (ariaFirstPart && ariaFirstPart.length > 0) {
+        title = ariaFirstPart;
+      }
+
+      // 2. If no title yet, try innerText first line
+      if (!title) {
+        const innerTextFirstLine = el.innerText?.split('\n')[0]?.trim();
+        if (innerTextFirstLine && innerTextFirstLine.length > 0) {
+          title = innerTextFirstLine;
+        }
+      }
+
+      // 3. Try data-eventchip or other data attributes that might have title
+      if (!title) {
+        const dataTitle = el.getAttribute('data-eventchip-title') ||
+                          el.getAttribute('data-title') ||
+                          el.getAttribute('title');
+        if (dataTitle) title = dataTitle.trim();
+      }
+
+      // 4. Try finding a span/div with the event name class
+      if (!title) {
+        const nameEl = el.querySelector('[data-eventchip-title], .event-title, .title');
+        if (nameEl) title = nameEl.textContent?.trim() || '';
+      }
+
+      // 5. Final fallback
+      if (!title) title = 'Untitled Event';
 
       // Extract time from aria-label
       const timeMatch = ariaLabel.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)/);
@@ -99,7 +130,7 @@ Run via `mcp__claude-in-chrome__javascript_tool`:
       // Flag if we detected a meet link exists but couldn't extract URL
       const hasMeetingIndicator = hasGoogleMeet && !meetLink;
 
-      if (title && title !== 'Unknown Event') {
+      if (title && title !== 'Untitled Event') {
         events.push({
           id: eventId,
           title: title.substring(0, 50),

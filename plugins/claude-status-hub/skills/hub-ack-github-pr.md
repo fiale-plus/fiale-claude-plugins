@@ -457,13 +457,11 @@ Actions:
 
 Run the appropriate gh command based on user selection.
 
-## Step 4: Update Config
+## Step 4: Update Config and Bridge
 
 After successful action:
 
-```bash
-# Read current config, update lastSeen for this PR, write back
-```
+### 4a: Update Config
 
 Update the PR item's `lastSeen` with current values:
 - `commentsCount`
@@ -482,6 +480,25 @@ This sets the "expected" state so:
 If user chose "Stop tracking" for a merged PR, remove the entire PR item from the `foreground[]` array instead of updating `lastSeen`.
 
 Set `hasAlert: false` for this item (if not removed).
+
+### 4b: Update Bridge Immediately
+
+**CRITICAL**: The statusline reads from the bridge file, not config. You MUST update the bridge immediately or the alert will persist until next refresh cycle.
+
+```bash
+# Read the updated foreground array from config
+FOREGROUND=$(jq -c '.foreground // []' ~/.claude/status-config.json)
+
+# Preserve current background from bridge
+BACKGROUND=$(jq -c '.background // {}' /tmp/status-hub.json)
+BG_SITE=$(echo "$BACKGROUND" | jq -r '.site // "hub"')
+BG_ICON=$(echo "$BACKGROUND" | jq -r '.icon // "✓"')
+BG_TITLE=$(echo "$BACKGROUND" | jq -r '.title // "Status Hub"')
+BG_DETAIL=$(echo "$BACKGROUND" | jq -r '.detail // ""')
+
+# Update bridge with cleared alert state
+${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh "$BG_SITE" "$BG_ICON" "$BG_TITLE" "$BG_DETAIL" --foreground "$FOREGROUND"
+```
 
 ## Error Handling
 
