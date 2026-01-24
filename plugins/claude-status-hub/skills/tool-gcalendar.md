@@ -45,10 +45,47 @@ Run via `mcp__claude-in-chrome__javascript_tool`:
       // Extract time from aria-label
       const timeMatch = ariaLabel.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)/);
 
-      // Look for meeting links
-      const meetLink = el.querySelector('a[href*="meet.google.com"]')?.href ||
-                       el.querySelector('a[href*="zoom.us"]')?.href ||
-                       el.querySelector('a[href*="teams.microsoft.com"]')?.href || '';
+      // Look for meeting links - check multiple sources
+      let meetLink = '';
+
+      // 1. Direct anchor tags in the element
+      meetLink = el.querySelector('a[href*="meet.google.com"]')?.href ||
+                 el.querySelector('a[href*="zoom.us"]')?.href ||
+                 el.querySelector('a[href*="teams.microsoft.com"]')?.href || '';
+
+      // 2. Check aria-label for Google Meet URL pattern
+      if (!meetLink) {
+        const meetMatch = ariaLabel.match(/https:\/\/meet\.google\.com\/[a-z-]+/i);
+        if (meetMatch) meetLink = meetMatch[0];
+      }
+
+      // 3. Check aria-label for Zoom URL pattern
+      if (!meetLink) {
+        const zoomMatch = ariaLabel.match(/https:\/\/[a-z0-9]*\.?zoom\.us\/j\/\d+/i);
+        if (zoomMatch) meetLink = zoomMatch[0];
+      }
+
+      // 4. Check for "Join with Google Meet" indicator (means there IS a meet link)
+      const hasGoogleMeet = ariaLabel.toLowerCase().includes('join with google meet') ||
+                            ariaLabel.toLowerCase().includes('google meet') ||
+                            el.querySelector('[data-call-url]') !== null;
+
+      // 5. Check data attributes for meeting URL
+      if (!meetLink) {
+        const callUrl = el.querySelector('[data-call-url]')?.getAttribute('data-call-url');
+        if (callUrl) meetLink = callUrl;
+      }
+
+      // 6. Search all nested elements for meeting links
+      if (!meetLink) {
+        el.querySelectorAll('*').forEach(child => {
+          if (meetLink) return;
+          const href = child.getAttribute('href') || '';
+          if (href.includes('meet.google.com') || href.includes('zoom.us') || href.includes('teams.microsoft.com')) {
+            meetLink = href;
+          }
+        });
+      }
 
       // Get event ID for deduplication
       const eventId = el.getAttribute('data-eventid') ||
@@ -59,12 +96,16 @@ Run via `mcp__claude-in-chrome__javascript_tool`:
       const hasAttachments = el.querySelector('[aria-label*="attachment"]') !== null ||
                              ariaLabel.includes('attachment');
 
+      // Flag if we detected a meet link exists but couldn't extract URL
+      const hasMeetingIndicator = hasGoogleMeet && !meetLink;
+
       if (title && title !== 'Unknown Event') {
         events.push({
           id: eventId,
           title: title.substring(0, 50),
           time: timeMatch ? timeMatch[1] : null,
           meetingLink: meetLink,
+          hasMeetingIndicator: hasMeetingIndicator, // Has meeting but couldn't get URL
           hasAttachments: hasAttachments,
           ariaLabel: ariaLabel.substring(0, 200)
         });
@@ -189,6 +230,7 @@ Standardized format for hub integration:
       "title": "Team Standup",
       "startTime": 1705344000000,
       "meetingLink": "https://meet.google.com/xxx-yyyy-zzz",
+      "hasMeetingIndicator": false,
       "hasAttachments": false,
       "organizer": "alice@company.com"
     }
@@ -200,6 +242,9 @@ Standardized format for hub integration:
     "meetingLink": "https://meet.google.com/xxx-yyyy-zzz"
   }
 }
+```
+
+**Note on `hasMeetingIndicator`**: When `true` and `meetingLink` is empty, this indicates a meeting link exists but couldn't be extracted from the compact calendar view. The ack skill should click the event to open its popup and extract the link from there.
 ```
 
 ## Alert Detection

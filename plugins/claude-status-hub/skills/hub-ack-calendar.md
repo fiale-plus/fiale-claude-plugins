@@ -252,9 +252,86 @@ After successful action:
 - Set `hasAlert: false`
 - Write updated config
 
+## Extracting Meeting Link from Event Popup
+
+If `meetingLink` is missing but `hasMeetingIndicator` is true (or the meeting title suggests a conference call), try to extract the link by clicking the event:
+
+### Step A: Click Event to Open Details
+
+```javascript
+// Find the event element in calendar
+const eventEl = await mcp__claude-in-chrome__find({
+  query: `calendar event "${title}"`,
+  tabId: calendarTabId
+});
+
+// Click to open event popup
+await mcp__claude-in-chrome__computer({
+  action: 'left_click',
+  ref: eventEl.ref,
+  tabId: calendarTabId
+});
+
+// Wait for popup to load
+await mcp__claude-in-chrome__computer({
+  action: 'wait',
+  duration: 1,
+  tabId: calendarTabId
+});
+```
+
+### Step B: Extract Link from Popup
+
+```javascript
+// Look for meeting link in the popup
+const popupData = await mcp__claude-in-chrome__javascript_tool({
+  action: 'javascript_exec',
+  tabId: calendarTabId,
+  text: `(() => {
+    // Find event popup/detail panel
+    const popup = document.querySelector('[data-eventid][role="dialog"], [data-eventid].detail, [role="dialog"]');
+    if (!popup) return { found: false };
+
+    // Look for meeting link in popup
+    const meetLink = popup.querySelector('a[href*="meet.google.com"]')?.href ||
+                     popup.querySelector('a[href*="zoom.us"]')?.href ||
+                     popup.querySelector('a[href*="teams.microsoft.com"]')?.href ||
+                     popup.querySelector('[data-call-url]')?.getAttribute('data-call-url') || '';
+
+    // Also check text content for URLs
+    if (!meetLink) {
+      const text = popup.textContent || '';
+      const meetMatch = text.match(/https:\\/\\/meet\\.google\\.com\\/[a-z-]+/i);
+      const zoomMatch = text.match(/https:\\/\\/[a-z0-9]*\\.?zoom\\.us\\/j\\/\\d+/i);
+      if (meetMatch) return { found: true, link: meetMatch[0] };
+      if (zoomMatch) return { found: true, link: zoomMatch[0] };
+    }
+
+    return { found: !!meetLink, link: meetLink };
+  })()`
+});
+
+if (popupData.found) {
+  meetingLink = popupData.link;
+}
+
+// Close popup by pressing Escape
+await mcp__claude-in-chrome__computer({
+  action: 'key',
+  text: 'Escape',
+  tabId: calendarTabId
+});
+```
+
+### Step C: If Still Not Found
+
+If link extraction fails after clicking, fall back to error handling below.
+
+---
+
 ## Error Handling
 
-If meeting link is missing:
+If meeting link is missing after extraction attempts:
 ```
 📅 <title> - <time context>
 
