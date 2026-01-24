@@ -206,58 +206,196 @@ Old daemons (pre-v1.0.4) don't have auto-death and will run forever. Detect and 
 
 ### Step 9: Configure Calendar (Optional)
 
-Ask if user wants calendar meeting alerts:
+#### 9.1 Detect Available Connection Methods
 
+Before presenting options, check what's installed:
+
+```javascript
+// Check Chrome MCP
+let chromeStatus = { installed: false, ready: false };
+try {
+  const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: false });
+  chromeStatus = { installed: true, ready: !context.error };
+} catch (e) {
+  // Not installed or not responding
+  chromeStatus = { installed: false, ready: false };
+}
+
+// Check Playwright MCP
+let playwrightStatus = { installed: false, ready: false };
+try {
+  const result = await mcp__playwright__browser_navigate({ url: 'about:blank' });
+  playwrightStatus = { installed: true, ready: !result.error };
+} catch (e) {
+  playwrightStatus = { installed: false, ready: false };
+}
 ```
-Would you like to enable Google Calendar meeting alerts?
 
-This will show upcoming meetings in your statusline and let you
-take actions (join, send "running late" messages) via /hub-ack.
+#### 9.2 Present Consolidated Calendar Wizard
 
-[1] Yes, set up calendar (Recommended)
-[2] Skip for now
+Show ALL connection methods with dynamic status indicators:
+
+```json
+{
+  "questions": [{
+    "question": "Would you like to enable Google Calendar meeting alerts?\n\nThis shows upcoming meetings in your statusline and lets you take actions (join, send 'running late' messages) via /hub-ack.",
+    "header": "Calendar",
+    "options": [
+      {
+        "label": "Chrome browser tab",
+        "description": "<dynamic: '✓ Ready - uses open Calendar tab' if chromeStatus.installed, else '⚠️ Requires Claude-in-Chrome extension'>"
+      },
+      {
+        "label": "Playwright (headless)",
+        "description": "<dynamic: '✓ Ready - works in background' if playwrightStatus.installed, else '⚠️ Requires Playwright MCP server'>"
+      },
+      {
+        "label": "Skip for now",
+        "description": "Configure later with /hub-setup-gcalendar"
+      }
+    ],
+    "multiSelect": false
+  }]
+}
 ```
 
-If user selects "Yes":
+Build the actual AskUserQuestion call with computed descriptions:
 
-1. **Check Chrome MCP availability**:
-   - Verify `mcp__claude-in-chrome__tabs_context_mcp` is available
-   - If not: "Calendar requires the Claude in Chrome extension. Install it first, then run /hub-setup again."
+```javascript
+const chromeDesc = chromeStatus.installed
+  ? "✓ Ready - uses open Calendar tab"
+  : "⚠️ Requires Claude-in-Chrome extension";
 
-2. **Get calendar tab**:
-   ```
-   Please open Google Calendar in Chrome, then press Enter.
+const playwrightDesc = playwrightStatus.installed
+  ? "✓ Ready - works in background"
+  : "⚠️ Requires Playwright MCP server";
+```
 
-   (The calendar tab should show your schedule view - day, week, or month)
-   ```
+#### 9.3 Handle User Selection
 
-3. **Find the calendar tab**:
-   - Use `mcp__claude-in-chrome__tabs_context_mcp` to list tabs
-   - Look for tab with URL containing `calendar.google.com`
-   - If not found, ask user to confirm it's open
+**If user selects Chrome:**
 
-4. **Store tab ID and enable calendar**:
-   ```javascript
-   config.calendar = {
-     connection: "chrome",
-     chrome: { tabId: <found-tab-id> },
-     alertMinutesBefore: 5,
-     alertWithDocsBefore: 10,
-     lateMessageTo: "organizer"
-   };
-   ```
+- **If Chrome is installed:**
+  1. Ask user to open Google Calendar in Chrome
+  2. Use `mcp__claude-in-chrome__tabs_context_mcp` to find the tab
+  3. Store tab ID and proceed to alert timing (9.4)
 
-5. **Confirm**:
-   ```
-   Calendar configured! Tab ID: <id>
+- **If Chrome is NOT installed:**
+  Show installation guidance:
+  ```
+  📦 Installing Claude-in-Chrome Extension
 
-   You'll get alerts for meetings starting in 5 minutes
-   (10 minutes for meetings with attachments to review).
-   ```
+  The Claude-in-Chrome extension is required for this option.
 
-If user selects "Skip":
-- Keep `calendar.connection: "disabled"` (set during migration)
-- Inform: "You can enable calendar later with /hub-setup"
+  1. Install from Chrome Web Store (search "Claude in Chrome")
+  2. Click the extension icon and sign in
+  3. Restart Claude Code session
+
+  After installing, run /hub-setup again to continue calendar setup.
+  ```
+  Set `calendar.connection: "disabled"` and continue to Step 10.
+
+**If user selects Playwright:**
+
+- **If Playwright is installed:**
+  1. Prompt user to log in via Playwright browser if needed
+  2. Verify login state with `mcp__playwright__browser_navigate`
+  3. Proceed to alert timing (9.4)
+
+- **If Playwright is NOT installed:**
+  Show installation guidance:
+  ```
+  📦 Installing Playwright MCP
+
+  The Playwright MCP server is required for this option.
+
+  1. Add to your Claude Code MCP settings:
+     {
+       "mcpServers": {
+         "playwright": {
+           "command": "npx",
+           "args": ["@playwright/mcp@latest"]
+         }
+       }
+     }
+
+  2. Restart Claude Code session
+
+  After installing, run /hub-setup again to continue calendar setup.
+  ```
+  Set `calendar.connection: "disabled"` and continue to Step 10.
+
+**If user selects Skip:**
+- Set `calendar.connection: "disabled"`
+- Continue to Step 10
+
+#### 9.4 Configure Alert Timing (After Connection Success)
+
+Only show this if a connection method was successfully configured:
+
+```json
+{
+  "questions": [{
+    "question": "When should calendar alerts appear?",
+    "header": "Alerts",
+    "options": [
+      {"label": "5 minutes before", "description": "Standard reminder (Recommended)"},
+      {"label": "10 minutes before", "description": "More time to wrap up"},
+      {"label": "Custom", "description": "Set your own timing"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+If "Custom" selected, ask for minutes:
+```json
+{
+  "questions": [{
+    "question": "How many minutes before meetings should alerts appear?",
+    "header": "Minutes",
+    "options": [
+      {"label": "3 minutes", "description": "Quick heads-up"},
+      {"label": "15 minutes", "description": "Plenty of preparation time"},
+      {"label": "30 minutes", "description": "Early warning"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+#### 9.5 Save Calendar Configuration
+
+```javascript
+config.calendar = {
+  connection: "<selected-method>",  // "chrome", "playwright", or "disabled"
+  chrome: { tabId: <found-tab-id-or-null> },
+  playwright: { profile: "default", headless: false },
+  alertMinutesBefore: <selected-minutes>,  // 5, 10, or custom
+  alertWithDocsBefore: <selected-minutes + 5>,
+  lateMessageTo: "organizer"
+};
+```
+
+#### 9.6 Confirm Calendar Setup
+
+If successfully configured:
+```
+Calendar configured!
+
+Connection: <Chrome tab | Playwright>
+<if Chrome: Tab ID: <id>>
+Alerts: <X> minutes before meetings
+
+Keep the calendar tab open for best results.
+```
+
+If skipped or installation needed:
+```
+Calendar setup skipped.
+
+Run /hub-setup-gcalendar anytime to configure calendar integration.
+```
 
 ### Step 10: Confirm Setup
 
@@ -267,8 +405,8 @@ Status Hub configured!
 
 Base prompt: <describe what was preserved or "default">
 <if legacy daemon was killed: "Cleaned up legacy daemon (pre-auto-death version)">
-<if calendar enabled: "Calendar: Enabled (alerts 5min before meetings)">
-<if calendar disabled: "Calendar: Disabled (enable anytime with /hub-setup)">
+<if calendar enabled: "Calendar: Enabled via <Chrome|Playwright> (alerts <X>min before meetings)">
+<if calendar disabled: "Calendar: Disabled (enable anytime with /hub-setup-gcalendar)">
 
 Your statusline will now show:
 - Git branch and dirty state

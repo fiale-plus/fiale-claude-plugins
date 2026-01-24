@@ -1,11 +1,11 @@
 ---
 name: hub-setup-gcalendar
-description: Set up Google Calendar integration (Chrome MCP or Playwright)
+description: Set up Google Calendar API access (for environments without Chrome MCP)
 ---
 
 # Google Calendar Setup Wizard
 
-Interactive wizard to configure Google Calendar integration via browser.
+Interactive wizard to configure Google Calendar integration via browser automation.
 
 ## When to Use
 
@@ -23,117 +23,245 @@ Interactive wizard to configure Google Calendar integration via browser.
 | Method | Best For | Requirements |
 |--------|----------|--------------|
 | Chrome MCP | Active browser use | Claude-in-Chrome extension |
-| Playwright | Headless/background | Playwright MCP plugin |
+| Playwright | Headless/background | Playwright MCP server |
+
+---
 
 ## Wizard Flow
 
-### Step 1: Choose Connection Method
+### Step 1: Detect Available Connection Methods
 
-Use AskUserQuestion:
+Before presenting options, check what's installed (sequential detection):
+
+```javascript
+// Check Chrome MCP
+let chromeStatus = { installed: false, ready: false };
+try {
+  const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: false });
+  chromeStatus = { installed: true, ready: !context.error };
+} catch (e) {
+  chromeStatus = { installed: false, ready: false };
+}
+
+// Check Playwright MCP
+let playwrightStatus = { installed: false, ready: false };
+try {
+  const result = await mcp__playwright__browser_navigate({ url: 'about:blank' });
+  playwrightStatus = { installed: true, ready: !result.error };
+} catch (e) {
+  playwrightStatus = { installed: false, ready: false };
+}
+```
+
+### Step 2: Present Consolidated Connection Wizard
+
+Show ALL connection methods with dynamic status indicators:
+
+```javascript
+const chromeDesc = chromeStatus.installed
+  ? "✓ Ready - uses open Calendar tab"
+  : "⚠️ Requires Claude-in-Chrome extension";
+
+const playwrightDesc = playwrightStatus.installed
+  ? "✓ Ready - works in background"
+  : "⚠️ Requires Playwright MCP server";
+```
+
+Use AskUserQuestion with computed descriptions:
+
+```json
+{
+  "questions": [{
+    "question": "How would you like to connect to Google Calendar?",
+    "header": "Connection",
+    "options": [
+      {
+        "label": "Chrome browser tab",
+        "description": "<chromeDesc>"
+      },
+      {
+        "label": "Playwright (headless)",
+        "description": "<playwrightDesc>"
+      },
+      {
+        "label": "Skip calendar setup",
+        "description": "Cancel and set up later"
+      }
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+### Step 3: Handle User Selection
+
+#### If User Selects Chrome (Installed)
+
+1. **Prompt to open Calendar:**
+   ```
+   Please open Google Calendar in Chrome, then confirm.
+   ```
+
+2. **Find the calendar tab:**
+   ```javascript
+   const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: true });
+   const tabs = context.tabs || [];
+   const calendarTab = tabs.find(t => t.url?.includes('calendar.google.com'));
+   ```
+
+3. **If not found, ask user to navigate**
+
+4. **Test extraction:**
+   ```javascript
+   const events = await mcp__claude-in-chrome__javascript_tool({
+     action: 'javascript_exec',
+     tabId: tabId,
+     text: '(() => { return document.querySelectorAll("[data-eventid]").length; })()'
+   });
+   ```
+
+5. **Proceed to alert timing (Step 4)**
+
+#### If User Selects Chrome (Not Installed)
+
+Show installation guidance:
 
 ```
-question: "How would you like to connect to Google Calendar?"
-header: "Connection"
-options:
-  - label: "Chrome browser tab (Recommended)"
-    description: "Use an open Calendar tab with Claude-in-Chrome extension"
-  - label: "Playwright (headless)"
-    description: "Automated browser - works without visible Chrome"
-  - label: "Skip calendar setup"
-    description: "Set up calendar later"
+📦 Installing Claude-in-Chrome Extension
+
+The Claude-in-Chrome extension is required for this option.
+
+1. Install from Chrome Web Store (search "Claude in Chrome")
+2. Click the extension icon and sign in
+3. Restart Claude Code session
+
+After installing, run /hub-setup-gcalendar again to continue.
+```
+
+Set `calendar.connection: "disabled"` and exit wizard.
+
+#### If User Selects Playwright (Installed)
+
+1. **Check login state:**
+   ```javascript
+   await mcp__playwright__browser_navigate({ url: 'https://calendar.google.com' });
+   const snapshot = await mcp__playwright__browser_snapshot();
+   // Look for calendar elements vs login page
+   ```
+
+2. **If login needed:**
+   ```
+   Playwright needs a logged-in browser session.
+
+   Run this command in your terminal:
+
+   npx playwright open --save-storage=~/.claude/playwright-profile https://calendar.google.com
+
+   1. A browser window will open
+   2. Log into your Google account
+   3. Navigate to calendar.google.com
+   4. Close the browser when done
+
+   This saves your login session for Playwright to use.
+   ```
+
+3. **Verify login and proceed to alert timing (Step 4)**
+
+#### If User Selects Playwright (Not Installed)
+
+Show installation guidance:
+
+```
+📦 Installing Playwright MCP
+
+The Playwright MCP server is required for this option.
+
+1. Add to your Claude Code MCP settings:
+   {
+     "mcpServers": {
+       "playwright": {
+         "command": "npx",
+         "args": ["@playwright/mcp@latest"]
+       }
+     }
+   }
+
+2. Restart Claude Code session
+
+After installing, run /hub-setup-gcalendar again to continue.
+```
+
+Set `calendar.connection: "disabled"` and exit wizard.
+
+#### If User Selects Skip
+
+Set `calendar.connection: "disabled"` and exit wizard.
+
+---
+
+### Step 4: Configure Alert Timing
+
+Only shown after successful connection setup:
+
+```json
+{
+  "questions": [{
+    "question": "When should calendar alerts appear?",
+    "header": "Alerts",
+    "options": [
+      {"label": "5 minutes before", "description": "Standard reminder (Recommended)"},
+      {"label": "10 minutes before", "description": "More time to wrap up"},
+      {"label": "Custom", "description": "Set your own timing"}
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+If "Custom" selected:
+
+```json
+{
+  "questions": [{
+    "question": "How many minutes before meetings should alerts appear?",
+    "header": "Minutes",
+    "options": [
+      {"label": "3 minutes", "description": "Quick heads-up"},
+      {"label": "15 minutes", "description": "Plenty of preparation time"},
+      {"label": "30 minutes", "description": "Early warning"}
+    ],
+    "multiSelect": false
+  }]
+}
 ```
 
 ---
 
-## Chrome MCP Setup
-
-### Step 2a: Check Chrome Extension
-
-```
-question: "Do you have the Claude-in-Chrome extension installed?"
-header: "Extension"
-options:
-  - label: "Yes, it's installed"
-    description: "Proceed to tab setup"
-  - label: "No, I need to install it"
-    description: "Show installation instructions"
-```
-
-If needs installation:
-
-```
-## Installing Claude-in-Chrome
-
-1. Install from Chrome Web Store (search "Claude in Chrome")
-2. Click the extension icon and sign in
-3. Come back here when ready
-
-The extension allows Claude to interact with browser tabs.
-```
-
-### Step 3a: Open Google Calendar
-
-```
-question: "Please open Google Calendar in your browser and come back."
-header: "Open Calendar"
-options:
-  - label: "Calendar is open"
-    description: "Proceed to connect"
-  - label: "I'll do this later"
-    description: "Cancel setup for now"
-```
-
-### Step 4a: Get Tab Context
-
-```javascript
-// Get current tabs
-const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: true });
-
-// Find calendar tab or ask user to select
-const tabs = context.tabs || [];
-const calendarTab = tabs.find(t => t.url?.includes('calendar.google.com'));
-
-if (calendarTab) {
-  // Found it automatically
-  tabId = calendarTab.id;
-} else {
-  // Ask user to navigate to calendar
-  // Then take screenshot to confirm
-}
-```
-
-### Step 5a: Verify and Save
-
-Test extraction on the tab:
-
-```javascript
-const events = await mcp__claude-in-chrome__javascript_tool({
-  action: 'javascript_exec',
-  tabId: tabId,
-  text: '(() => { return document.querySelectorAll("[data-eventid]").length; })()'
-});
-```
-
-Save config:
+### Step 5: Save Configuration
 
 ```json
 {
   "calendar": {
-    "connection": "chrome",
+    "connection": "<chrome|playwright>",
     "chrome": { "tabId": 12345 },
+    "playwright": { "profile": "default", "headless": false },
     "alertMinutesBefore": 5,
     "alertWithDocsBefore": 10
   }
 }
 ```
 
-### Success Message (Chrome)
+---
+
+### Step 6: Success Message
+
+**For Chrome:**
 
 ```
 Google Calendar connected via Chrome!
 
 Tab ID: 12345
-Found events on your calendar.
+Alerts: X minutes before meetings
 
 Your statusline will now show:
 - Upcoming meetings with time remaining
@@ -143,112 +271,12 @@ Keep the calendar tab open for best results.
 Use /hub-ack to interact with calendar alerts.
 ```
 
----
-
-## Playwright Setup
-
-### Step 2b: Check Playwright Installation
-
-```
-question: "Do you have the Playwright plugin installed?"
-header: "Playwright"
-options:
-  - label: "Yes, it's installed"
-    description: "Proceed to login"
-  - label: "No, I need to install it"
-    description: "Show installation instructions"
-```
-
-If needs installation:
-
-```
-## Installing Playwright Plugin
-
-1. In Claude Code, run: /install playwright
-   (from the claude-plugins-official marketplace)
-
-2. Restart Claude Code after installation
-
-3. Come back and run /hub-setup-gcalendar again
-```
-
-### Step 3b: Login to Google
-
-```
-## Google Calendar Login
-
-Playwright needs a logged-in browser session.
-
-Run this command in your terminal:
-
-npx playwright open --save-storage=~/.claude/playwright-profile https://calendar.google.com
-
-1. A browser window will open
-2. Log into your Google account
-3. Navigate to calendar.google.com
-4. Close the browser when done
-
-This saves your login session for Playwright to use.
-```
-
-Ask when ready:
-
-```
-question: "Have you completed the Google login in the Playwright browser?"
-header: "Login"
-options:
-  - label: "Yes, I'm logged in"
-    description: "Test the connection"
-  - label: "I need help"
-    description: "Show troubleshooting steps"
-  - label: "I'll do this later"
-    description: "Cancel setup for now"
-```
-
-### Step 4b: Test Playwright Connection
-
-```javascript
-// Navigate to calendar
-await mcp__playwright__browser_navigate({
-  url: 'https://calendar.google.com'
-});
-
-// Check if logged in
-const snapshot = await mcp__playwright__browser_snapshot();
-// Look for calendar elements vs login page
-```
-
-If login page detected:
-
-```
-It looks like you're not logged in yet.
-
-Please run the login command again:
-npx playwright open --save-storage=~/.claude/playwright-profile https://calendar.google.com
-
-Make sure to:
-1. Complete the Google sign-in
-2. See your calendar events
-3. Close the browser window
-```
-
-### Step 5b: Save Config
-
-```json
-{
-  "calendar": {
-    "connection": "playwright",
-    "playwright": { "profile": "default", "headless": false },
-    "alertMinutesBefore": 5,
-    "alertWithDocsBefore": 10
-  }
-}
-```
-
-### Success Message (Playwright)
+**For Playwright:**
 
 ```
 Google Calendar connected via Playwright!
+
+Alerts: X minutes before meetings
 
 Your statusline will now show:
 - Upcoming meetings with time remaining
@@ -262,27 +290,9 @@ Use /hub-ack to interact with calendar alerts.
 
 ---
 
-## Configuration Options
+## Troubleshooting
 
-After setup, ask about alert preferences:
-
-```
-question: "When should you be alerted before meetings?"
-header: "Alerts"
-options:
-  - label: "5 minutes before"
-    description: "Standard alert timing"
-  - label: "10 minutes before"
-    description: "More time to prepare"
-  - label: "Custom timing"
-    description: "I'll configure manually"
-```
-
----
-
-## Playwright Troubleshooting
-
-If Playwright has issues:
+### Playwright Issues
 
 ```
 ## Playwright Troubleshooting
@@ -313,45 +323,31 @@ Common issues:
 - "Timeout" → Check your internet connection
 ```
 
+### Chrome Extension Issues
+
+```
+## Chrome Extension Troubleshooting
+
+If you're having issues with Chrome MCP:
+
+1. **Verify extension is installed:**
+   - Check Chrome extensions page (chrome://extensions)
+   - Look for "Claude in Chrome"
+
+2. **Verify extension is signed in:**
+   - Click the extension icon in Chrome toolbar
+   - Ensure you're logged in
+
+3. **Verify Chrome is running:**
+   - Chrome browser must be open
+   - Extension must be active (not disabled)
+
+4. **Restart Claude Code session**
+
+5. **Run /hub-setup-gcalendar again**
+```
+
 ---
-
-## Error Handling
-
-### Chrome Extension Not Found
-
-```
-Claude-in-Chrome extension not detected.
-
-To install:
-1. Search "Claude in Chrome" in Chrome Web Store
-2. Click "Add to Chrome"
-3. Sign in to the extension
-4. Run /hub-setup-gcalendar again
-```
-
-### Playwright Not Installed
-
-```
-Playwright plugin not detected.
-
-To install:
-1. Run: /install playwright
-2. Restart Claude Code
-3. Run /hub-setup-gcalendar again
-```
-
-### Login Failed
-
-```
-Could not verify Google login.
-
-Please try:
-1. Clear browser data and re-login
-2. Make sure you can see your calendar events
-3. Close all Playwright browsers and try again
-
-If using 2FA, complete the verification in the browser.
-```
 
 ## Security Notes
 

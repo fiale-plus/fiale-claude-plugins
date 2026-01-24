@@ -280,3 +280,156 @@ When connection detection returns `needsSetup: true`:
    - Detect available methods
    - Guide through configuration
    - Store preferences in config
+
+---
+
+## Detect Installed Connection Methods
+
+Before presenting setup options, detect what connection methods are actually installed vs just potentially available.
+
+### Installation Status Object
+
+```javascript
+function getConnectionStatus() {
+  return {
+    chrome: { installed: true/false, ready: true/false },
+    playwright: { installed: true/false, ready: true/false },
+    slackMcp: { installed: true/false, ready: true/false }
+  };
+}
+```
+
+- `installed`: The MCP server/extension is configured and responds
+- `ready`: Can be used immediately (browser running, logged in, etc.)
+
+Use `installed` to show option availability in wizards.
+Use `ready` to determine if immediate use is possible without additional setup.
+
+### Check Chrome MCP Installed
+
+```javascript
+async function checkChromeMcpInstalled() {
+  try {
+    // Attempt to call tabs_context_mcp
+    const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: false });
+
+    // If we get here, the tool exists and responded
+    return {
+      installed: true,
+      ready: context && !context.error
+    };
+  } catch (e) {
+    // Check error type
+    if (e.message?.includes('not found') ||
+        e.message?.includes('unknown tool') ||
+        e.message?.includes('MCP server')) {
+      // Tool doesn't exist - extension not installed
+      return { installed: false, ready: false };
+    }
+
+    // Tool exists but errored (Chrome not running, etc.)
+    // Still count as installed
+    return { installed: true, ready: false };
+  }
+}
+```
+
+### Check Playwright MCP Installed
+
+```javascript
+async function checkPlaywrightMcpInstalled() {
+  try {
+    // Attempt a simple navigation to about:blank
+    const result = await mcp__playwright__browser_navigate({ url: 'about:blank' });
+
+    return {
+      installed: true,
+      ready: result && !result.error
+    };
+  } catch (e) {
+    // Check error type
+    if (e.message?.includes('not found') ||
+        e.message?.includes('unknown tool') ||
+        e.message?.includes('MCP server')) {
+      // Tool doesn't exist - Playwright MCP not configured
+      return { installed: false, ready: false };
+    }
+
+    // Tool exists but errored (browser issue, etc.)
+    return { installed: true, ready: false };
+  }
+}
+```
+
+### Check Slack MCP Installed
+
+```javascript
+async function checkSlackMcpInstalled() {
+  try {
+    // Attempt to list channels with minimal limit
+    const result = await mcp__slack__list_channels({ limit: 1 });
+
+    return {
+      installed: true,
+      ready: result && !result.error
+    };
+  } catch (e) {
+    if (e.message?.includes('not found') ||
+        e.message?.includes('unknown tool') ||
+        e.message?.includes('MCP server')) {
+      return { installed: false, ready: false };
+    }
+
+    // Tool exists but auth issue, etc.
+    return { installed: true, ready: false };
+  }
+}
+```
+
+### Usage in Setup Wizards
+
+```javascript
+// Get all connection statuses before presenting wizard
+const chromeStatus = await checkChromeMcpInstalled();
+const playwrightStatus = await checkPlaywrightMcpInstalled();
+
+// Build wizard options with dynamic descriptions
+const options = [
+  {
+    label: "Chrome browser tab",
+    description: chromeStatus.installed
+      ? "✓ Ready - uses open Calendar tab"
+      : "⚠️ Requires Claude-in-Chrome extension"
+  },
+  {
+    label: "Playwright (headless)",
+    description: playwrightStatus.installed
+      ? "✓ Ready - works in background"
+      : "⚠️ Requires Playwright MCP server"
+  },
+  {
+    label: "Skip for now",
+    description: "Configure later"
+  }
+];
+
+// After user selection, check if they chose an uninstalled method
+if (userChoice === "chrome" && !chromeStatus.installed) {
+  // Show installation instructions instead of proceeding
+  showChromeInstallationGuide();
+  return;
+}
+```
+
+### Status Descriptions
+
+Use these consistent descriptions in wizards:
+
+| Method | Installed | Description |
+|--------|-----------|-------------|
+| Chrome | ✓ | "✓ Ready - uses open Calendar tab" |
+| Chrome | ✗ | "⚠️ Requires Claude-in-Chrome extension" |
+| Playwright | ✓ | "✓ Ready - works in background" |
+| Playwright | ✗ | "⚠️ Requires Playwright MCP server" |
+| Slack MCP | ✓ | "✓ Ready - direct Slack integration" |
+| Slack MCP | ✗ | "⚠️ Requires Slack MCP server" |
