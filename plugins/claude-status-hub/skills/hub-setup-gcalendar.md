@@ -97,19 +97,43 @@ Use AskUserQuestion with computed descriptions:
 
 #### If User Selects Chrome (Installed)
 
-1. **Prompt to open Calendar:**
-   ```
-   Please open Google Calendar in Chrome, then confirm.
-   ```
-
-2. **Find the calendar tab:**
+1. **Open Calendar automatically in MCP tab group:**
    ```javascript
+   // Get or create MCP tab group context
    const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: true });
+
+   // Check if calendar tab already exists
    const tabs = context.tabs || [];
-   const calendarTab = tabs.find(t => t.url?.includes('calendar.google.com'));
+   let calendarTab = tabs.find(t => t.url?.includes('calendar.google.com'));
+
+   if (!calendarTab) {
+     // Create new tab in MCP group and navigate
+     const newTab = await mcp__claude-in-chrome__tabs_create_mcp();
+     const tabId = newTab.tabId;
+     await mcp__claude-in-chrome__navigate({
+       tabId: tabId,
+       url: 'https://calendar.google.com'
+     });
+     // Wait for page to load
+     await mcp__claude-in-chrome__computer({
+       action: 'wait',
+       duration: 3,
+       tabId: tabId
+     });
+     calendarTab = { id: tabId };
+   }
    ```
 
-3. **If not found, ask user to navigate**
+2. **Verify calendar loaded:**
+   ```javascript
+   // Take screenshot to verify page loaded
+   await mcp__claude-in-chrome__computer({
+     action: 'screenshot',
+     tabId: calendarTab.id
+   });
+   ```
+
+3. **If login required, inform user and wait**
 
 4. **Test extraction:**
    ```javascript

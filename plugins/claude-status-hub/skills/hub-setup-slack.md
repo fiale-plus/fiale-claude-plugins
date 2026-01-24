@@ -176,32 +176,56 @@ If needs installation:
 The extension allows Claude to interact with browser tabs.
 ```
 
-### Step 3b: Open Slack
+### Step 3b: Get Workspace URL First
 
 ```
-question: "Please open your Slack workspace in the browser and come back."
-header: "Open Slack"
+question: "What's your Slack workspace URL? (e.g., mycompany.slack.com)"
+header: "Workspace"
 options:
-  - label: "Slack is open"
-    description: "Proceed to connect"
-  - label: "I'll do this later"
-    description: "Cancel setup for now"
+  - label: "Continue..."
+    description: "I'll enter the workspace in the 'Other' field"
 ```
 
-### Step 4b: Get Tab Context
+### Step 4b: Open Slack Automatically
 
 ```javascript
-// Get current tabs
+// Get or create MCP tab group context
 const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: true });
 
-// Find Slack tab
+// Check if Slack tab already exists in MCP group
 const tabs = context.tabs || [];
-const slackTab = tabs.find(t => t.url?.includes('slack.com'));
+let slackTab = tabs.find(t => t.url?.includes('slack.com'));
 
-if (slackTab) {
-  tabId = slackTab.id;
-  workspace = new URL(slackTab.url).hostname;
+if (!slackTab) {
+  // Create new tab in MCP group and navigate
+  const newTab = await mcp__claude-in-chrome__tabs_create_mcp();
+  const tabId = newTab.tabId;
+  await mcp__claude-in-chrome__navigate({
+    tabId: tabId,
+    url: `https://${workspace}`
+  });
+  // Wait for page to load
+  await mcp__claude-in-chrome__computer({
+    action: 'wait',
+    duration: 3,
+    tabId: tabId
+  });
+  slackTab = { id: tabId, url: `https://${workspace}` };
 }
+
+tabId = slackTab.id;
+workspace = new URL(slackTab.url).hostname;
+
+// Take screenshot to verify page loaded
+await mcp__claude-in-chrome__computer({
+  action: 'screenshot',
+  tabId: tabId
+});
+```
+
+If login page detected, inform user:
+```
+I've opened Slack in your browser. Please log in if needed, then let me know when ready.
 ```
 
 ### Step 5b: Verify and Save
