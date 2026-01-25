@@ -45,18 +45,32 @@ function processCalendarData(events, config) {
 
 ## Output Format
 
+**With alert (starting soon/now):**
+```json
+{
+  "site": "calendar",
+  "icon": "🔴",
+  "title": "Team Standup",
+  "detail": "NOW | meet.google.com/xxx-yyy",
+  "hasAlert": true
+}
+```
+
+**Upcoming (no alert):**
 ```json
 {
   "site": "calendar",
   "icon": "📅",
   "title": "Team Standup",
   "detail": "in 15m",
-  "hasAlert": false,
-  "data": { "startTime": 1234567890000, "meetingLink": "https://meet.google.com/..." }
+  "hasAlert": false
 }
 ```
 
-Icons: `📅` upcoming, `🔴` starting now (alert)
+Detail format:
+- Alert + URL: `"NOW | meet.google.com/xxx"` or `"in 2m | meet.google.com/xxx"`
+- Alert, no URL: `"NOW"` or `"in 2m"`
+- No alert: `"in 15m"`
 
 **No meetings:** Return `null` (don't add to foreground). Silence is the signal.
 

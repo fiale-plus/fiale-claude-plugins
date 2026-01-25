@@ -8,7 +8,17 @@ Browser-based Google Calendar operations. See `connection-detect.md` for connect
 
 **Prerequisite:** Google Calendar open in **day view** (`/calendar/u/0/r/day`)
 
-### Data Extraction Script
+### Step 1: Scroll to Current Time
+
+Before extracting, press "t" to go to today (scrolls to current time area):
+
+```
+computer tool: action="key", text="t"
+```
+
+This ensures upcoming meetings near current time are visible for extraction.
+
+### Step 2: Data Extraction Script
 
 ```javascript
 (() => {
