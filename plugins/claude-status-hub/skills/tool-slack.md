@@ -144,6 +144,77 @@ function checkAlerts(data, config) {
 }
 ```
 
+---
+
+## Chrome MCP Mode - Sending Messages
+
+### Navigate to Conversation
+
+```javascript
+// Navigate to DM by name
+(() => {
+  const targetName = "<name>".toLowerCase();
+  const dmButton = Array.from(document.querySelectorAll('[data-qa="im_sidebar_name_button"]'))
+    .find(el => el.textContent?.toLowerCase().includes(targetName));
+  if (dmButton) {
+    dmButton.click();
+    return { success: true, type: 'dm' };
+  }
+  const chButton = Array.from(document.querySelectorAll('[data-qa="channel_sidebar_name_button"]'))
+    .find(el => el.textContent?.toLowerCase().includes(targetName));
+  if (chButton) {
+    chButton.click();
+    return { success: true, type: 'channel' };
+  }
+  return { success: false, error: 'Conversation not found' };
+})()
+```
+
+### Focus Message Input
+
+```javascript
+(() => {
+  const input = document.querySelector('[data-qa="message_input"]');
+  if (input) {
+    input.focus();
+    return { success: true };
+  }
+  // Fallback: contenteditable div
+  const editor = document.querySelector('.ql-editor[contenteditable="true"]');
+  if (editor) {
+    editor.focus();
+    return { success: true, fallback: true };
+  }
+  return { success: false, error: 'Message input not found' };
+})()
+```
+
+### Send Message Flow
+
+1. Navigate to conversation (script above)
+2. Wait 500ms for load
+3. Focus message input (script above)
+4. Type message: `mcp__claude-in-chrome__computer({ action: 'type', text: '<message>', tabId })`
+5. Send: `mcp__claude-in-chrome__computer({ action: 'key', text: 'Return', tabId })`
+6. Wait 300ms, verify send
+
+### Verify Message Sent
+
+```javascript
+(() => {
+  // Check if input is now empty (message was sent)
+  const input = document.querySelector('[data-qa="message_input"]');
+  const isEmpty = !input?.textContent?.trim();
+  // Check for recent message from self
+  const messages = document.querySelectorAll('[data-qa="message_container"]');
+  const lastMsg = messages[messages.length - 1];
+  const isSelf = lastMsg?.querySelector('[data-qa="message_sender_name"]')?.textContent?.includes('You');
+  return { sent: isEmpty || isSelf };
+})()
+```
+
+---
+
 ## Error Table
 
 | Error | Method | Solution |
@@ -153,3 +224,5 @@ function checkAlerts(data, config) {
 | Session expired | playwright | Re-login via setup |
 | invalid_auth | api | Token expired; re-extract credentials |
 | ratelimited | all | Wait and retry |
+| Message input not found | chrome | Slack UI may have changed; try clicking conversation first |
+| Send failed | chrome | Copy to clipboard as fallback |
