@@ -113,7 +113,7 @@ Use AskUserQuestion with computed descriptions:
      const tabId = newTab.tabId;
      await mcp__claude-in-chrome__navigate({
        tabId: tabId,
-       url: 'https://calendar.google.com/calendar/r/day'
+       url: 'https://calendar.google.com/calendar/u/0/r/day'
      });
      // Wait for page to load
      await mcp__claude-in-chrome__computer({

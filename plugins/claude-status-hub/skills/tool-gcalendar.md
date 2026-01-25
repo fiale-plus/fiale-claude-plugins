@@ -28,117 +28,42 @@ Run via `mcp__claude-in-chrome__javascript_tool`:
 ```javascript
 (() => {
   const events = [];
-  const now = new Date();
-  const today = now.toISOString().split('T')[0];
-
-  // Find events in day/week view
-  const eventEls = document.querySelectorAll('[data-eventid], [data-eventchip]');
+  const eventEls = document.querySelectorAll("[data-eventid], [data-eventchip]");
 
   eventEls.forEach(el => {
     try {
-      // Get event title from multiple sources
-      const ariaLabel = el.getAttribute('aria-label') || '';
+      const text = el.innerText || "";
+      const lines = text.split("\n").map(l => l.trim()).filter(l => l);
 
-      // Try multiple extraction strategies for title
-      let title = '';
+      // Skip if no content
+      if (lines.length < 2) return;
 
-      // 1. First segment of aria-label (before comma) - common format: "Meeting Title, 2:00 PM"
-      const ariaFirstPart = ariaLabel.split(',')[0]?.trim();
-      if (ariaFirstPart && ariaFirstPart.length > 0) {
-        title = ariaFirstPart;
-      }
+      // Format: line[0] = full description, line[1] = title, line[2] = time range
+      // Example: "С 13:29 до 14:29, My meeting, ..." / "My meeting" / "13:29–14:29"
+      const title = lines[1] || lines[0] || "Untitled Event";
 
-      // 2. If no title yet, try innerText first line
-      if (!title) {
-        const innerTextFirstLine = el.innerText?.split('\n')[0]?.trim();
-        if (innerTextFirstLine && innerTextFirstLine.length > 0) {
-          title = innerTextFirstLine;
-        }
-      }
+      // Extract time from any line
+      const timeMatch = text.match(/(\d{1,2}:\d{2})/);
 
-      // 3. Try data-eventchip or other data attributes that might have title
-      if (!title) {
-        const dataTitle = el.getAttribute('data-eventchip-title') ||
-                          el.getAttribute('data-title') ||
-                          el.getAttribute('title');
-        if (dataTitle) title = dataTitle.trim();
-      }
+      // Look for meeting links
+      let meetLink = el.querySelector("a[href*='meet.google.com']")?.href ||
+                     el.querySelector("a[href*='zoom.us']")?.href ||
+                     el.querySelector("[data-call-url]")?.getAttribute("data-call-url") || "";
 
-      // 4. Try finding a span/div with the event name class
-      if (!title) {
-        const nameEl = el.querySelector('[data-eventchip-title], .event-title, .title');
-        if (nameEl) title = nameEl.textContent?.trim() || '';
-      }
-
-      // 5. Final fallback
-      if (!title) title = 'Untitled Event';
-
-      // Extract time from aria-label
-      const timeMatch = ariaLabel.match(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)/);
-
-      // Look for meeting links - check multiple sources
-      let meetLink = '';
-
-      // 1. Direct anchor tags in the element
-      meetLink = el.querySelector('a[href*="meet.google.com"]')?.href ||
-                 el.querySelector('a[href*="zoom.us"]')?.href ||
-                 el.querySelector('a[href*="teams.microsoft.com"]')?.href || '';
-
-      // 2. Check aria-label for Google Meet URL pattern
+      // Check text for meeting URL
       if (!meetLink) {
-        const meetMatch = ariaLabel.match(/https:\/\/meet\.google\.com\/[a-z-]+/i);
+        const meetMatch = text.match(/https:\/\/meet\.google\.com\/[a-z-]+/i);
         if (meetMatch) meetLink = meetMatch[0];
       }
 
-      // 3. Check aria-label for Zoom URL pattern
-      if (!meetLink) {
-        const zoomMatch = ariaLabel.match(/https:\/\/[a-z0-9]*\.?zoom\.us\/j\/\d+/i);
-        if (zoomMatch) meetLink = zoomMatch[0];
-      }
+      const eventId = el.getAttribute("data-eventid") || title.substring(0, 20);
 
-      // 4. Check for "Join with Google Meet" indicator (means there IS a meet link)
-      const hasGoogleMeet = ariaLabel.toLowerCase().includes('join with google meet') ||
-                            ariaLabel.toLowerCase().includes('google meet') ||
-                            el.querySelector('[data-call-url]') !== null;
-
-      // 5. Check data attributes for meeting URL
-      if (!meetLink) {
-        const callUrl = el.querySelector('[data-call-url]')?.getAttribute('data-call-url');
-        if (callUrl) meetLink = callUrl;
-      }
-
-      // 6. Search all nested elements for meeting links
-      if (!meetLink) {
-        el.querySelectorAll('*').forEach(child => {
-          if (meetLink) return;
-          const href = child.getAttribute('href') || '';
-          if (href.includes('meet.google.com') || href.includes('zoom.us') || href.includes('teams.microsoft.com')) {
-            meetLink = href;
-          }
-        });
-      }
-
-      // Get event ID for deduplication
-      const eventId = el.getAttribute('data-eventid') ||
-                      el.getAttribute('data-eventchip') ||
-                      title.substring(0, 20);
-
-      // Check for attachments
-      const hasAttachments = el.querySelector('[aria-label*="attachment"]') !== null ||
-                             ariaLabel.includes('attachment');
-
-      // Flag if we detected a meet link exists but couldn't extract URL
-      const hasMeetingIndicator = hasGoogleMeet && !meetLink;
-
-      if (title && title !== 'Untitled Event') {
+      if (title && timeMatch) {
         events.push({
           id: eventId,
           title: title.substring(0, 50),
-          time: timeMatch ? timeMatch[1] : null,
-          meetingLink: meetLink,
-          hasMeetingIndicator: hasMeetingIndicator, // Has meeting but couldn't get URL
-          hasAttachments: hasAttachments,
-          ariaLabel: ariaLabel.substring(0, 200)
+          time: timeMatch[1],
+          meetingLink: meetLink
         });
       }
     } catch (e) {
@@ -166,7 +91,7 @@ const tabId = config.calendar.chrome.tabId;
 // 2. Verify tab is on Google Calendar day view
 const pageText = await mcp__claude-in-chrome__get_page_text({ tabId });
 if (!pageText.includes('calendar.google.com')) {
-  await mcp__claude-in-chrome__navigate({ tabId, url: 'https://calendar.google.com/calendar/r/day' });
+  await mcp__claude-in-chrome__navigate({ tabId, url: 'https://calendar.google.com/calendar/u/0/r/day' });
 }
 
 // 3. Extract events

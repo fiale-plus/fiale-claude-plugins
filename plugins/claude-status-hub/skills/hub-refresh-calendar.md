@@ -63,7 +63,7 @@ async function refreshViaChrome(config, tabId) {
   }
 
   // Ensure we're on day view (not agenda which uses cross-origin iframes)
-  await mcp__claude-in-chrome__navigate({ tabId, url: 'https://calendar.google.com/calendar/r/day' });
+  await mcp__claude-in-chrome__navigate({ tabId, url: 'https://calendar.google.com/calendar/u/0/r/day' });
 
   const events = await mcp__claude-in-chrome__javascript_tool({
     action: 'javascript_exec',
