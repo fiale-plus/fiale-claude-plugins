@@ -56,7 +56,9 @@ function processCalendarData(events, config) {
 }
 ```
 
-Icons: `📅` upcoming, `🔴` starting now, `✓` clear
+Icons: `📅` upcoming, `🔴` starting now (alert)
+
+**No meetings:** Return `null` (don't add to foreground). Silence is the signal.
 
 ## Bridge Update
 
