@@ -21,7 +21,11 @@ See `connection-detect.md` for full config schema.
 - Claude-in-Chrome extension installed
 - Tab ID stored in `calendar.chrome.tabId`
 
-### Data Extraction Script
+### Important: Agenda View Limitation
+
+**Google Calendar's agenda view renders events in cross-origin iframes.** JavaScript DOM queries cannot access these events. When the JS extraction returns empty results, use the accessibility-based fallback below.
+
+### Primary: JavaScript Extraction (Day/Week/Month views)
 
 Run via `mcp__claude-in-chrome__javascript_tool`:
 
@@ -32,7 +36,46 @@ Run via `mcp__claude-in-chrome__javascript_tool`:
   const today = now.toISOString().split('T')[0];
 
   // Find events in day/schedule view
-  const eventEls = document.querySelectorAll('[data-eventid], [data-eventchip]');
+  let eventEls = document.querySelectorAll('[data-eventid], [data-eventchip]');
+
+  // Fallback: Agenda view uses buttons inside main with time patterns
+  // Format: "С HH:MM до HH:MM, Title, Organizer, Location, Date"
+  if (eventEls.length === 0) {
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      // Find buttons that look like events (contain time ranges)
+      const buttons = mainEl.querySelectorAll('button');
+      const agendaEvents = [];
+      buttons.forEach(btn => {
+        const text = btn.textContent || '';
+        // Match agenda format: "С HH:MM до HH:MM" or "From HH:MM to HH:MM" or time range patterns
+        const timeMatch = text.match(/(\d{1,2}:\d{2})\s*(?:до|to|-)\s*(\d{1,2}:\d{2})/i);
+        if (timeMatch) {
+          const parts = text.split(',').map(p => p.trim());
+          // parts[0] = time range, parts[1] = title, parts[2] = organizer, etc.
+          const title = parts[1] || 'Untitled Event';
+          const startTime = timeMatch[1];
+
+          // Look for meeting link in button or nearby elements
+          let meetLink = '';
+          const linkEl = btn.querySelector('a[href*="meet.google.com"], a[href*="zoom.us"]');
+          if (linkEl) meetLink = linkEl.href;
+
+          agendaEvents.push({
+            id: title.substring(0, 20) + startTime,
+            title: title.substring(0, 50),
+            time: startTime,
+            meetingLink: meetLink,
+            ariaLabel: text.substring(0, 200),
+            isAgendaView: true
+          });
+        }
+      });
+      if (agendaEvents.length > 0) {
+        return agendaEvents;
+      }
+    }
+  }
 
   eventEls.forEach(el => {
     try {
@@ -176,6 +219,64 @@ const events = await mcp__claude-in-chrome__javascript_tool({
   tabId: tabId,
   text: extractionScript
 });
+
+// 4. If empty (agenda view), use accessibility fallback
+if (!events || events.length === 0) {
+  // Use read_page to get accessibility tree
+  const pageData = await mcp__claude-in-chrome__read_page({ tabId });
+  // Parse events from accessibility output (see fallback section below)
+}
+```
+
+### Fallback: Accessibility-Based Extraction (Agenda View)
+
+When JavaScript extraction returns empty (common in agenda view due to cross-origin iframes), use accessibility tools:
+
+```javascript
+// 1. Use read_page to get accessibility tree
+const pageData = await mcp__claude-in-chrome__read_page({ tabId, filter: 'interactive' });
+
+// 2. Parse the output for event buttons
+// Look for buttons matching pattern: "С HH:MM до HH:MM, Title, ..." or "From HH:MM to HH:MM, Title, ..."
+// The pageData output contains lines like:
+//   button "С 13:29 до 14:29, My meeting, Pavel Fadeev, Место не указано, 25 января 2026" [ref_76]
+
+// 3. Extract events from the text
+// Pattern: time range followed by comma-separated fields
+// - Field 0: Time range (e.g., "С 13:29 до 14:29")
+// - Field 1: Title (e.g., "My meeting")
+// - Field 2: Organizer (e.g., "Pavel Fadeev")
+// - Field 3: Location (e.g., "Место не указано")
+// - Field 4: Date (e.g., "25 января 2026")
+```
+
+**Parsing agenda event text:**
+```javascript
+function parseAgendaEventText(text) {
+  // Match time range patterns in various locales
+  const timeMatch = text.match(/(\d{1,2}:\d{2})\s*(?:до|to|-|–)\s*(\d{1,2}:\d{2})/i);
+  if (!timeMatch) return null;
+
+  const parts = text.split(',').map(p => p.trim());
+  return {
+    startTime: timeMatch[1],
+    endTime: timeMatch[2],
+    title: parts[1] || 'Untitled Event',
+    organizer: parts[2] || '',
+    location: parts[3] || '',
+    date: parts[4] || ''
+  };
+}
+```
+
+**Using find tool for specific events:**
+```javascript
+// Find today's meetings
+const result = await mcp__claude-in-chrome__find({
+  query: 'meeting event today',
+  tabId: tabId
+});
+// Returns refs that can be clicked to open event details
 ```
 
 ## Playwright Mode
