@@ -18,10 +18,13 @@ Receives calendar item from dispatcher with:
 const now = Date.now();
 const start = new Date(item.startTime).getTime();
 const diffMinutes = Math.round((start - now) / 60000);
+const alertWithDocsBefore = config.calendar?.alertWithDocsBefore || 10;
 ```
 
 Determine case:
-- **Case A**: `diffMinutes > 5` (meeting upcoming) - **normally suppress these alerts**
+- **Case A**: `diffMinutes > 5 && diffMinutes <= alertWithDocsBefore` (meeting upcoming with prep time)
+  - Only applies to meetings with `hasAttachments: true`
+  - Bounded by `alertWithDocsBefore` threshold (default 10min)
 - **Case B**: `diffMinutes >= -5 && diffMinutes <= 5` (meeting starting now)
 - **Case C**: `diffMinutes < -5 && diffMinutes >= -30` (meeting started)
 - **Case D**: `diffMinutes < -30` (late ack, meeting may have ended)
@@ -32,22 +35,24 @@ Determine case:
 
 **Exception - meetings with prep**:
 - If `hasAttachments: true` (meeting has docs) → alert at configured `alertWithDocsBefore` (default 10min)
+- **Upper bound**: Never alert earlier than `alertWithDocsBefore` threshold
 - Allows time to review materials before joining
 
 ```javascript
 const shouldAlert = (
   diffMinutes <= 5 ||  // Always alert when imminent
-  (item.hasAttachments && diffMinutes <= config.calendar.alertWithDocsBefore)
+  (item.hasAttachments && diffMinutes > 5 && diffMinutes <= alertWithDocsBefore)
 );
 ```
 
-This prevents noise from meetings 30+ minutes away while ensuring prep meetings get early notice.
+This prevents noise from meetings beyond the threshold while ensuring prep meetings get early notice within the configured window.
 
 ## Step 2: Show Time-Appropriate Wizard
 
-### Case A: Meeting Upcoming (> 5min before)
+### Case A: Meeting Upcoming (5min < time <= alertWithDocsBefore)
 
 **Note**: Only shown for meetings with prep materials (hasAttachments: true).
+**Bound**: Will NOT alert earlier than `alertWithDocsBefore` threshold (default 10min).
 
 ```
 📅 <title> (<time>) - in <N> minutes
