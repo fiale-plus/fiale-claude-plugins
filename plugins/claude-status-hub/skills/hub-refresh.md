@@ -53,7 +53,8 @@ Icon: `▶` playing, `⏸` paused.
 
 If `calendar.connection === "chrome"` and `calendar.chrome.tabId` exists:
 - Follow `hub-refresh-calendar.md`
-- Add result to foreground items
+- Only add to foreground if there's an upcoming meeting (returns non-null)
+- No meetings = skip (silence is the signal)
 
 ## Step 3: Refresh Foreground Items
 

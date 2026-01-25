@@ -63,7 +63,8 @@ fi
 
 # Build progress bar helper
 build_bar() {
-  local pct=$1 filled=$((pct / 10)); [ "$filled" -gt 10 ] && filled=10
+  local pct=$1
+  local filled=$((pct / 10)); [ "$filled" -gt 10 ] && filled=10
   local bar=""; for ((i=0; i<filled; i++)); do bar+="█"; done
   for ((i=filled; i<10; i++)); do bar+="░"; done
   echo "$bar"

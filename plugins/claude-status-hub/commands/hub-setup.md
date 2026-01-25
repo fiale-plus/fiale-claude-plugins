@@ -92,16 +92,48 @@ If Chrome/Playwright selected and installed:
 
 If not installed: show brief instructions, set `calendar.connection: "disabled"`.
 
-## Step 7: Confirm Setup
+## Step 7: Configure Slack (Optional)
+
+Present wizard for Slack VIP alerts:
+
+```json
+{
+  "question": "Enable Slack VIP message alerts?",
+  "header": "Slack",
+  "options": [
+    {"label": "Chrome browser tab", "description": "<dynamic status>"},
+    {"label": "Skip for now", "description": "Configure later with /hub-setup-slack"}
+  ]
+}
+```
+
+If Chrome selected and available:
+1. Follow `/hub-setup-slack` flow
+2. Save to `config.slack`
+
+## Step 8: Confirm Setup
 
 ```
 Status Hub configured!
 
 Base prompt: <preserved|default>
 <if legacy daemon killed: "Cleaned up legacy daemon">
-<Calendar: Enabled via Chrome/Playwright | Disabled>
+Calendar: <Enabled via Chrome/Playwright | Skipped>
+Slack: <Enabled via Chrome | Skipped>
 
-Your statusline will show: Git branch, music, PR status, meeting alerts.
+Your statusline will show: Git branch, music, PR status, alerts.
 
 Restart Claude Code to apply.
+```
+
+## Step 9: Suggest Next Steps
+
+Show features based on what wasn't configured:
+
+```
+Next steps:
+• /hub-focus - Start a focus session with calendar awareness
+• /hub-play - Control music playback
+<if calendar skipped: • /hub-setup-gcalendar - Configure calendar alerts>
+<if slack skipped: • /hub-setup-slack - Configure Slack alerts>
 ```

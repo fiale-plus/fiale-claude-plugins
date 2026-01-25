@@ -45,18 +45,36 @@ function processCalendarData(events, config) {
 
 ## Output Format
 
+**With alert (starting soon/now):**
+```json
+{
+  "site": "calendar",
+  "icon": "🔴",
+  "title": "Team Standup",
+  "detail": "NOW | meet.google.com/xxx-yyy",
+  "hasAlert": true
+}
+```
+
+**Upcoming (no alert):**
 ```json
 {
   "site": "calendar",
   "icon": "📅",
   "title": "Team Standup",
   "detail": "in 15m",
-  "hasAlert": false,
-  "data": { "startTime": 1234567890000, "meetingLink": "https://meet.google.com/..." }
+  "hasAlert": false
 }
 ```
 
-Icons: `📅` upcoming, `🔴` starting now, `✓` clear
+Detail format:
+- Alert + URL: `"NOW | https://meet.google.com/xxx"` or `"in 2m | https://meet.google.com/xxx"`
+- Alert, no URL: `"NOW"` or `"in 2m"`
+- No alert: `"in 15m"`
+
+**Important:** Always include `https://` prefix for URLs - makes them clickable in terminal.
+
+**No meetings:** Return `null` (don't add to foreground). Silence is the signal.
 
 ## Bridge Update
 

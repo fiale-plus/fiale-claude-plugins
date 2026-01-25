@@ -5,7 +5,7 @@
 # Started by SessionStart hook, runs until terminal closes
 
 INTERVAL=90
-FULL_REFRESH_EVERY=4  # 4 × 90s = 6 minutes
+FULL_REFRESH_EVERY=3  # 3 × 90s = 4.5 minutes
 LOCKFILE="/tmp/status-hub-daemon.lock"
 CONFIG="$HOME/.claude/status-config.json"
 BRIDGE="/tmp/status-hub.json"
