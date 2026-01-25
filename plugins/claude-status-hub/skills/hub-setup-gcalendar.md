@@ -107,12 +107,13 @@ Use AskUserQuestion with computed descriptions:
    let calendarTab = tabs.find(t => t.url?.includes('calendar.google.com'));
 
    if (!calendarTab) {
-     // Create new tab in MCP group and navigate
+     // Create new tab in MCP group and navigate to DAY view
+     // Day view is required - agenda view uses cross-origin iframes that block JS extraction
      const newTab = await mcp__claude-in-chrome__tabs_create_mcp();
      const tabId = newTab.tabId;
      await mcp__claude-in-chrome__navigate({
        tabId: tabId,
-       url: 'https://calendar.google.com'
+       url: 'https://calendar.google.com/calendar/r/day'
      });
      // Wait for page to load
      await mcp__claude-in-chrome__computer({

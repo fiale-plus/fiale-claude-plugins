@@ -56,58 +56,20 @@ See `tool-gcalendar.md` for the JavaScript extraction script.
 
 ```javascript
 async function refreshViaChrome(config, tabId) {
-  // Verify tab context
   const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: false });
 
   if (!tabId) {
     throw new Error('Calendar tab not configured. Run /hub-setup-gcalendar');
   }
 
-  // Try JavaScript extraction first (works in day/week/month views)
-  let events = await mcp__claude-in-chrome__javascript_tool({
+  // Ensure we're on day view (not agenda which uses cross-origin iframes)
+  await mcp__claude-in-chrome__navigate({ tabId, url: 'https://calendar.google.com/calendar/r/day' });
+
+  const events = await mcp__claude-in-chrome__javascript_tool({
     action: 'javascript_exec',
     tabId: tabId,
     text: extractionScript
   });
-
-  // Fallback: Accessibility extraction (required for agenda view)
-  // Agenda view renders events in cross-origin iframes that block JS access
-  if (!events || events.length === 0) {
-    const pageData = await mcp__claude-in-chrome__read_page({ tabId, filter: 'interactive' });
-    events = parseAccessibilityEvents(pageData);
-  }
-
-  return events;
-}
-
-// Parse events from read_page accessibility output
-function parseAccessibilityEvents(pageData) {
-  const events = [];
-  // Look for button lines with time ranges
-  // Format: button "С HH:MM до HH:MM, Title, Organizer, Location, Date" [ref_XX]
-  const lines = pageData.split('\n');
-
-  for (const line of lines) {
-    // Match time range in button text
-    const timeMatch = line.match(/(\d{1,2}:\d{2})\s*(?:до|to|-|–)\s*(\d{1,2}:\d{2})/i);
-    if (!timeMatch) continue;
-
-    // Extract quoted text from button
-    const textMatch = line.match(/"([^"]+)"/);
-    if (!textMatch) continue;
-
-    const text = textMatch[1];
-    const parts = text.split(',').map(p => p.trim());
-
-    events.push({
-      id: parts[1]?.substring(0, 20) + timeMatch[1],
-      title: parts[1] || 'Untitled Event',
-      time: timeMatch[1],
-      organizer: parts[2] || '',
-      meetingLink: '', // Need to click event to get link
-      isAgendaView: true
-    });
-  }
 
   return events;
 }
