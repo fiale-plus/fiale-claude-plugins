@@ -68,9 +68,11 @@ function processCalendarData(events, config) {
 ```
 
 Detail format:
-- Alert + URL: `"NOW | meet.google.com/xxx"` or `"in 2m | meet.google.com/xxx"`
+- Alert + URL: `"NOW | https://meet.google.com/xxx"` or `"in 2m | https://meet.google.com/xxx"`
 - Alert, no URL: `"NOW"` or `"in 2m"`
 - No alert: `"in 15m"`
+
+**Important:** Always include `https://` prefix for URLs - makes them clickable in terminal.
 
 **No meetings:** Return `null` (don't add to foreground). Silence is the signal.
 
