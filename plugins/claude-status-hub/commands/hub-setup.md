@@ -105,3 +105,15 @@ Your statusline will show: Git branch, music, PR status, meeting alerts.
 
 Restart Claude Code to apply.
 ```
+
+## Step 8: Suggest Next Steps
+
+After setup completes, show available features:
+
+```
+Next steps:
+• /hub-focus - Start a focus session with calendar awareness
+• /hub-setup-gcalendar - Configure Google Calendar alerts
+• /hub-setup-slack - Connect Slack for VIP message alerts
+• /hub-play - Control music playback (YouTube Music, Spotify)
+```
