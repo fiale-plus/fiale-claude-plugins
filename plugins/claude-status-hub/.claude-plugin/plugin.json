@@ -1,6 +1,6 @@
 {
   "name": "claude-status-hub",
-  "version": "1.3.11",
+  "version": "1.4.0",
   "description": "Monitor and act - PRs, calendar, music, custom alerts with contextual actions via /hub-ack",
   "author": {
     "name": "Pavel Fadeev",
