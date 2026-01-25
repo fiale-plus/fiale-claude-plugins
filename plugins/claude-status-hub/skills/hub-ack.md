@@ -101,17 +101,30 @@ If multiple items have alerts, present a selection:
 
 Let user select which to handle, then route to the appropriate skill.
 
-## Step 8: Update Config After Ack
+## Step 8: Update Config and Bridge After Ack
 
 After successfully handling an alert:
 1. Update `lastSeen` values in config
-2. Set `hasAlert: false` for the item
-3. Write updated config back
+2. Set `hasAlert: false` for the item in config
+3. Write updated config back to `~/.claude/status-config.json`
+4. **CRITICAL**: Update the bridge file immediately so statusline reflects new state
 
 ```bash
-# After ack, refresh the bridge to reflect new state
-${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh ...
+# Read the updated foreground array from config (with hasAlert: false)
+FOREGROUND=$(jq -c '.foreground // []' ~/.claude/status-config.json)
+
+# Read current background from bridge
+BACKGROUND=$(jq -c '.background // {}' /tmp/status-hub.json)
+BG_SITE=$(echo "$BACKGROUND" | jq -r '.site // "hub"')
+BG_ICON=$(echo "$BACKGROUND" | jq -r '.icon // "✓"')
+BG_TITLE=$(echo "$BACKGROUND" | jq -r '.title // "Status Hub"')
+BG_DETAIL=$(echo "$BACKGROUND" | jq -r '.detail // ""')
+
+# Update bridge with new foreground state
+${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh "$BG_SITE" "$BG_ICON" "$BG_TITLE" "$BG_DETAIL" --foreground "$FOREGROUND"
 ```
+
+**Why this matters**: The statusline reads from `/tmp/status-hub.json` (bridge file), not the config. If you only update the config, the alert will persist in the statusline until the next daemon refresh cycle (up to 90 seconds).
 
 ## AskUserQuestion Format
 

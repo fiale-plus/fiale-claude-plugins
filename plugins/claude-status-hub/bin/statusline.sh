@@ -1,118 +1,59 @@
 #!/bin/bash
 # Claude Code Status Line with Hub Integration
-# Combines git status with hub state from /tmp/status-hub.json
 
 # ANSI colors
-PURPLE='\033[35m'
-CYAN='\033[36m'
-YELLOW='\033[33m'
-RED='\033[31m'
-GREEN='\033[32m'
-MAGENTA='\033[95m'
-RESET='\033[0m'
-DIM='\033[2m'
+PURPLE='\033[35m' CYAN='\033[36m' YELLOW='\033[33m' RED='\033[31m'
+GREEN='\033[32m' MAGENTA='\033[95m' RESET='\033[0m' DIM='\033[2m'
 
-# Constants
+# Files
 ERROR_FILE="/tmp/status-hub-error.txt"
 BRIDGE_FILE="/tmp/status-hub.json"
 BASE_CONFIG="${HOME}/.claude/status-base-config.json"
 HUB_CONFIG="${HOME}/.claude/status-config.json"
-QUOTA_FILE="/tmp/status-hub-quota.json"
-PLAY_ICON="▶"
-PAUSE_ICON="⏸"
 
-# Read Claude Code's context JSON (stdin)
+# Read context JSON (stdin)
 input=$(cat)
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // "~"')
 
-# Extract context window usage
-# Calculate against USABLE space (excluding autocompact buffer) to show proximity to compaction
-ctx_percent=0
-ctx_available="false"
+# Extract context window usage (calculate against usable space excluding autocompact buffer)
+ctx_percent=0; ctx_available="false"
 USAGE=$(echo "$input" | jq '.context_window.current_usage')
 ctx_size=$(echo "$input" | jq -r '.context_window.context_window_size // 200000')
-# Autocompact buffer is ~22.5% of context - calculate usable space
-buffer=$((ctx_size * 225 / 1000))
-usable_size=$((ctx_size - buffer))
+usable_size=$((ctx_size - ctx_size * 225 / 1000))
 
 if [ "$USAGE" != "null" ] && [ -n "$USAGE" ]; then
-  # Calculate from current_usage fields (as per docs)
   ctx_used=$(echo "$USAGE" | jq -r '.input_tokens + .cache_creation_input_tokens + .cache_read_input_tokens // 0')
-  if [ "$usable_size" -gt 0 ] 2>/dev/null && [ "$ctx_used" -gt 0 ] 2>/dev/null; then
-    ctx_percent=$((ctx_used * 100 / usable_size))
-    [ "$ctx_percent" -gt 100 ] && ctx_percent=100  # Cap at 100%
-    ctx_available="true"
-  fi
 else
-  # Fallback: use total_input_tokens (cumulative, not ideal but something)
   ctx_used=$(echo "$input" | jq -r '.context_window.total_input_tokens // 0')
-  if [ "$usable_size" -gt 0 ] 2>/dev/null && [ "$ctx_used" -gt 0 ] 2>/dev/null; then
-    ctx_percent=$((ctx_used * 100 / usable_size))
-    [ "$ctx_percent" -gt 100 ] && ctx_percent=100  # Cap at 100%
-    ctx_available="true"
-  fi
+fi
+if [ "$usable_size" -gt 0 ] 2>/dev/null && [ "$ctx_used" -gt 0 ] 2>/dev/null; then
+  ctx_percent=$((ctx_used * 100 / usable_size))
+  [ "$ctx_percent" -gt 100 ] && ctx_percent=100
+  ctx_available="true"
 fi
 
-# Default base prompt function
-get_default_prompt() {
-    echo "${PURPLE}$(whoami)${DIM}@${YELLOW}$(hostname -s)${DIM}:${CYAN}${cwd}${RESET}"
-}
+# Default base prompt
+get_default_prompt() { echo "${PURPLE}$(whoami)${DIM}@${YELLOW}$(hostname -s)${DIM}:${CYAN}${cwd}${RESET}"; }
 
 # Dynamic base prompt loader
 get_base_prompt() {
-    if [[ ! -f "$BASE_CONFIG" ]]; then
-        get_default_prompt
-        return
-    fi
-
-    local type=$(jq -r '.type // "default"' "$BASE_CONFIG" 2>/dev/null)
-    local value=$(jq -r '.value // ""' "$BASE_CONFIG" 2>/dev/null)
-
-    case "$type" in
-        command)
-            # Run user's original statusline command, pass through context
-            local result=$(echo "$input" | eval "$value" 2>/dev/null)
-            if [ -n "$result" ]; then
-                echo "$result"
-            else
-                get_default_prompt
-            fi
-            ;;
-        text)
-            # Use static text directly
-            echo "$value"
-            ;;
-        shell)
-            # Evaluate shell prompt variable
-            local shell_type=$(jq -r '.shell // "bash"' "$BASE_CONFIG" 2>/dev/null)
-            local prompt_result=""
-            if [[ "$shell_type" == "zsh" ]]; then
-                prompt_result=$(zsh -c 'print -P "$PROMPT"' 2>/dev/null)
-            else
-                prompt_result=$(bash -c 'echo -e "$PS1"' 2>/dev/null)
-            fi
-            if [ -n "$prompt_result" ]; then
-                echo "$prompt_result"
-            else
-                get_default_prompt
-            fi
-            ;;
-        *)
-            get_default_prompt
-            ;;
-    esac
+  [ ! -f "$BASE_CONFIG" ] && { get_default_prompt; return; }
+  local type=$(jq -r '.type // "default"' "$BASE_CONFIG" 2>/dev/null)
+  local value=$(jq -r '.value // ""' "$BASE_CONFIG" 2>/dev/null)
+  case "$type" in
+    command) result=$(echo "$input" | eval "$value" 2>/dev/null); [ -n "$result" ] && echo "$result" || get_default_prompt ;;
+    text) echo "$value" ;;
+    shell) local sh=$(jq -r '.shell // "bash"' "$BASE_CONFIG" 2>/dev/null)
+           [ "$sh" = "zsh" ] && result=$(zsh -c 'print -P "$PROMPT"' 2>/dev/null) || result=$(bash -c 'echo -e "$PS1"' 2>/dev/null)
+           [ -n "$result" ] && echo "$result" || get_default_prompt ;;
+    *) get_default_prompt ;;
+  esac
 }
 
-# Build base prompt (dynamic or default)
 BASE=$(get_base_prompt)
+BASE_TYPE="default"; [ -f "$BASE_CONFIG" ] && BASE_TYPE=$(jq -r '.type // "default"' "$BASE_CONFIG" 2>/dev/null)
 
-# Check if base config uses "command" type (skip git since original command likely includes it)
-BASE_TYPE="default"
-if [[ -f "$BASE_CONFIG" ]]; then
-  BASE_TYPE=$(jq -r '.type // "default"' "$BASE_CONFIG" 2>/dev/null)
-fi
-
-# Add git branch if in repo AND not using a preserved command (which likely already has git)
+# Git branch (skip if command type - likely includes git)
 GIT_PART=""
 if [[ "$BASE_TYPE" != "command" ]] && git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
   branch=$(git -C "$cwd" --no-optional-locks branch --show-current 2>/dev/null || echo 'HEAD')
@@ -120,190 +61,104 @@ if [[ "$BASE_TYPE" != "command" ]] && git -C "$cwd" rev-parse --git-dir > /dev/n
   git -C "$cwd" --no-optional-locks diff-index --quiet HEAD -- 2>/dev/null || GIT_PART="${GIT_PART}${YELLOW}*${RESET}"
 fi
 
-# Build context display part
+# Build progress bar helper
+build_bar() {
+  local pct=$1 filled=$((pct / 10)); [ "$filled" -gt 10 ] && filled=10
+  local bar=""; for ((i=0; i<filled; i++)); do bar+="█"; done
+  for ((i=filled; i<10; i++)); do bar+="░"; done
+  echo "$bar"
+}
+
+# Color by percentage
+pct_color() { [ "$1" -ge 80 ] && echo "$RED" || { [ "$1" -ge 60 ] && echo "$YELLOW" || echo "$GREEN"; }; }
+
+# Context display
 CONTEXT_PART=""
-if [ -f "$HUB_CONFIG" ]; then
-  CTX_DISPLAY=$(jq -r '.contextDisplay // "off"' "$HUB_CONFIG" 2>/dev/null)
-  CTX_THRESHOLD=$(jq -r '.contextAlertThreshold // 80' "$HUB_CONFIG" 2>/dev/null)
-else
-  CTX_DISPLAY="off"
-  CTX_THRESHOLD=80
-fi
-
+CTX_DISPLAY="off"; CTX_THRESHOLD=80
+[ -f "$HUB_CONFIG" ] && { CTX_DISPLAY=$(jq -r '.contextDisplay // "off"' "$HUB_CONFIG" 2>/dev/null); CTX_THRESHOLD=$(jq -r '.contextAlertThreshold // 80' "$HUB_CONFIG" 2>/dev/null); }
 if [ "$CTX_DISPLAY" != "off" ] && [ "$ctx_available" = "true" ]; then
-  # Determine color based on usage
-  if [ "$ctx_percent" -ge 80 ]; then
-    CTX_COLOR="$RED"
-  elif [ "$ctx_percent" -ge 60 ]; then
-    CTX_COLOR="$YELLOW"
-  else
-    CTX_COLOR="$GREEN"
-  fi
-
+  CTX_COLOR=$(pct_color "$ctx_percent")
   case "$CTX_DISPLAY" in
-    bar)
-      # Build 10-char progress bar: [████░░░░░░ 42%]
-      filled=$((ctx_percent / 10))
-      # Cap at 10 to prevent overflow
-      [ "$filled" -gt 10 ] && filled=10
-      empty=$((10 - filled))
-      BAR=""
-      for ((i=0; i<filled; i++)); do BAR="${BAR}█"; done
-      for ((i=0; i<empty; i++)); do BAR="${BAR}░"; done
-      CONTEXT_PART=" ${DIM}›${RESET} ${CTX_COLOR}[${BAR}]${RESET} ${DIM}${ctx_percent}%${RESET}"
-      ;;
-    percent)
-      CONTEXT_PART=" ${DIM}›${RESET} ${CTX_COLOR}${ctx_percent}%${RESET}"
-      ;;
-    threshold)
-      # Only show if above threshold
-      if [ "$ctx_percent" -ge "$CTX_THRESHOLD" ]; then
-        CONTEXT_PART=" ${DIM}›${RESET} ${CTX_COLOR}⚠ ${ctx_percent}%${RESET}"
-      fi
-      ;;
+    bar) CONTEXT_PART=" ${DIM}›${RESET} ${CTX_COLOR}[$(build_bar $ctx_percent)]${RESET} ${DIM}${ctx_percent}%${RESET}" ;;
+    percent) CONTEXT_PART=" ${DIM}›${RESET} ${CTX_COLOR}${ctx_percent}%${RESET}" ;;
+    threshold) [ "$ctx_percent" -ge "$CTX_THRESHOLD" ] && CONTEXT_PART=" ${DIM}›${RESET} ${CTX_COLOR}⚠ ${ctx_percent}%${RESET}" ;;
   esac
 fi
 
-# Build quota display part (using real context window tokens)
+# Quota display
 QUOTA_PART=""
 if [ -f "$HUB_CONFIG" ]; then
   QUOTA_DISPLAY=$(jq -r '.quota.displayFormat // "off"' "$HUB_CONFIG" 2>/dev/null)
-  QUOTA_THRESHOLD=$(jq -r '.quota.alertThreshold // 80' "$HUB_CONFIG" 2>/dev/null)
-  # Daily limit in thousands from config, convert to tokens
-  DAILY_LIMIT_K=$(jq -r '.quota.dailyLimit // 45' "$HUB_CONFIG" 2>/dev/null)
-  DAILY_LIMIT=$((DAILY_LIMIT_K * 1000))
-
-  if [ "$QUOTA_DISPLAY" != "off" ] && [ "$ctx_used" -gt 0 ] 2>/dev/null; then
-    # Use real context tokens against daily limit
-    if [ "$DAILY_LIMIT" -gt 0 ] 2>/dev/null; then
-      QUOTA_PERCENT=$((ctx_used * 100 / DAILY_LIMIT))
-
-      # Determine color
-      if [ "$QUOTA_PERCENT" -ge 90 ]; then
-        QUOTA_COLOR="$RED"
-      elif [ "$QUOTA_PERCENT" -ge 75 ]; then
-        QUOTA_COLOR="$YELLOW"
-      else
-        QUOTA_COLOR="$GREEN"
-      fi
-
-      case "$QUOTA_DISPLAY" in
-        bar)
-          filled=$((QUOTA_PERCENT / 10))
-          [ "$filled" -gt 10 ] && filled=10
-          empty=$((10 - filled))
-          BAR=""
-          for ((i=0; i<filled; i++)); do BAR="${BAR}█"; done
-          for ((i=0; i<empty; i++)); do BAR="${BAR}░"; done
-          QUOTA_PART=" ${DIM}›${RESET} ${QUOTA_COLOR}⚡[${BAR}]${RESET}"
-          ;;
-        number)
-          QUOTA_PART=" ${DIM}›${RESET} ${QUOTA_COLOR}⚡${QUOTA_PERCENT}%${RESET}"
-          ;;
-        compact)
-          QUOTA_PART=" ${DIM}›${RESET} ${QUOTA_COLOR}⚡${QUOTA_PERCENT}${RESET}"
-          ;;
-      esac
-    fi
+  DAILY_LIMIT=$(($(jq -r '.quota.dailyLimit // 45' "$HUB_CONFIG" 2>/dev/null) * 1000))
+  if [ "$QUOTA_DISPLAY" != "off" ] && [ "$ctx_used" -gt 0 ] 2>/dev/null && [ "$DAILY_LIMIT" -gt 0 ] 2>/dev/null; then
+    QUOTA_PCT=$((ctx_used * 100 / DAILY_LIMIT))
+    QUOTA_COLOR=$([ "$QUOTA_PCT" -ge 90 ] && echo "$RED" || { [ "$QUOTA_PCT" -ge 75 ] && echo "$YELLOW" || echo "$GREEN"; })
+    case "$QUOTA_DISPLAY" in
+      bar) QUOTA_PART=" ${DIM}›${RESET} ${QUOTA_COLOR}⚡[$(build_bar $QUOTA_PCT)]${RESET}" ;;
+      number) QUOTA_PART=" ${DIM}›${RESET} ${QUOTA_COLOR}⚡${QUOTA_PCT}%${RESET}" ;;
+      compact) QUOTA_PART=" ${DIM}›${RESET} ${QUOTA_COLOR}⚡${QUOTA_PCT}${RESET}" ;;
+    esac
   fi
 fi
 
-# Check for error file first (highest priority)
+# Error file check (highest priority)
 if [ -f "$ERROR_FILE" ]; then
   ERROR_MSG=$(cat "$ERROR_FILE" 2>/dev/null)
-  if [ -n "$ERROR_MSG" ]; then
-    printf '%b' "${BASE}${GIT_PART}${CONTEXT_PART}${QUOTA_PART} ${DIM}›${RESET} ${RED}⚠ ${ERROR_MSG}${RESET} ${CYAN}>${RESET}"
-    exit 0
-  fi
+  [ -n "$ERROR_MSG" ] && { printf '%b' "${BASE}${GIT_PART}${CONTEXT_PART}${QUOTA_PART} ${DIM}›${RESET} ${RED}⚠ ${ERROR_MSG}${RESET} ${CYAN}>${RESET}"; exit 0; }
 fi
 
-# Check for hub state
-FOREGROUND_PART=""
-BACKGROUND_PART=""
-DAEMON_STALE_PART=""
-
+# Hub state
+FOREGROUND_PART="" BACKGROUND_PART="" DAEMON_STALE_PART=""
 if [ -f "$BRIDGE_FILE" ]; then
-  # Cache bridge file content for multiple jq queries (avoids repeated file reads)
   BRIDGE_CONTENT=$(cat "$BRIDGE_FILE" 2>/dev/null)
-
-  # Read core data (timestamp, error, counts)
   BRIDGE_TS=$(echo "$BRIDGE_CONTENT" | jq -r '.timestamp // 0')
-  ERROR_MSG=$(echo "$BRIDGE_CONTENT" | jq -r '.error.message // empty')
   FG_COUNT=$(echo "$BRIDGE_CONTENT" | jq -r '.foreground | length')
   HAS_ALERT=$(echo "$BRIDGE_CONTENT" | jq -r '[.foreground[] | select(.hasAlert == true)] | length > 0')
 
-  # Check if daemon is stale (no update in >3 minutes = 180000ms)
-  NOW_MS=$(($(date +%s) * 1000))
-  AGE_MS=$((NOW_MS - BRIDGE_TS))
-  if [ "$AGE_MS" -gt 180000 ]; then
-    DAEMON_STALE_PART=" ${DIM}›${RESET} ${RED}💀${RESET}"
-  fi
+  # Stale daemon check (>3 min)
+  AGE_MS=$(( $(date +%s) * 1000 - BRIDGE_TS ))
+  [ "$AGE_MS" -gt 180000 ] && DAEMON_STALE_PART=" ${DIM}›${RESET} ${RED}💀${RESET}"
 
-  # Read background data (single jq call)
-  BG_DATA=$(echo "$BRIDGE_CONTENT" | jq -r '[.background.site, .background.icon, .background.title, .background.detail] | @tsv')
-  IFS=$'\t' read -r BG_SITE BG_ICON BG_TITLE BG_DETAIL <<< "$BG_DATA"
+  # Background data
+  IFS=$'\t' read -r BG_SITE BG_ICON BG_TITLE BG_DETAIL <<< "$(echo "$BRIDGE_CONTENT" | jq -r '[.background.site, .background.icon, .background.title, .background.detail] | @tsv')"
 
-  # Determine display state and render
+  ERROR_MSG=$(echo "$BRIDGE_CONTENT" | jq -r '.error.message // empty')
   if [ -n "$ERROR_MSG" ]; then
-    # ERROR STATE: show error, background expanded
+    # ERROR STATE
     FOREGROUND_PART=" ${DIM}›${RESET} ${RED}⚠ ${ERROR_MSG}${RESET}"
-    if [ -n "$BG_SITE" ] && [ -n "$BG_TITLE" ]; then
-      BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON} ${BG_TITLE:0:25} - ${BG_DETAIL:0:15}${RESET}"
-    fi
+    [ -n "$BG_SITE" ] && [ -n "$BG_TITLE" ] && BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON} ${BG_TITLE:0:25} - ${BG_DETAIL:0:15}${RESET}"
   elif [ "$HAS_ALERT" = "true" ] && [ "$FG_COUNT" -gt 0 ]; then
-    # ALERT STATE: foreground expanded, background compact
-    FG_DATA=$(echo "$BRIDGE_CONTENT" | jq -r '([.foreground[] | select(.hasAlert == true)][0] // {}) | [.icon, .title, .detail, (.autoMerge // false | tostring)] | @tsv')
-    IFS=$'\t' read -r FG_ICON FG_TITLE FG_DETAIL FG_AUTO <<< "$FG_DATA"
-    # Append 🔁 indicator if autoMerge is enabled
+    # ALERT STATE
+    IFS=$'\t' read -r FG_ICON FG_TITLE FG_DETAIL FG_AUTO <<< "$(echo "$BRIDGE_CONTENT" | jq -r '([.foreground[] | select(.hasAlert == true)][0] // {}) | [.icon, .title, .detail, (.autoMerge // false | tostring)] | @tsv')"
     [ "$FG_AUTO" = "true" ] && FG_ICON="${FG_ICON}🔁"
     FOREGROUND_PART=" ${DIM}›${RESET} ${RED}${FG_ICON} ${FG_TITLE} ${FG_DETAIL}${RESET}"
-    if [ -n "$BG_SITE" ] && [ -n "$BG_ICON" ]; then
-      BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON}${RESET}"
-    fi
+    [ -n "$BG_ICON" ] && [ "$BG_ICON" != "off" ] && [ "$BG_SITE" != "off" ] && [ "$BG_SITE" != "--background" ] && BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON}${RESET}"
   else
-    # IDLE STATE: background expanded, foreground compact (counts)
-    if [ -n "$BG_SITE" ] && [ -n "$BG_TITLE" ]; then
-      BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON} ${BG_TITLE:0:25} - ${BG_DETAIL:0:15}${RESET}"
-    fi
+    # IDLE STATE
+    [ -n "$BG_SITE" ] && [ "$BG_SITE" != "off" ] && [ "$BG_SITE" != "--background" ] && [ -n "$BG_TITLE" ] && BACKGROUND_PART=" ${DIM}›${RESET} ${MAGENTA}${BG_ICON} ${BG_TITLE:0:25} - ${BG_DETAIL:0:15}${RESET}"
     if [ "$FG_COUNT" -gt 0 ]; then
       PR_COUNT=$(echo "$BRIDGE_CONTENT" | jq -r '[.foreground[] | select(.site == "github-pr")] | length')
-      PR_AUTO_COUNT=$(echo "$BRIDGE_CONTENT" | jq -r '[.foreground[] | select(.site == "github-pr" and .autoMerge == true)] | length')
-      OTHER_COUNT=$((FG_COUNT - PR_COUNT))
+      PR_AUTO=$(echo "$BRIDGE_CONTENT" | jq -r '[.foreground[] | select(.site == "github-pr" and .autoMerge == true)] | length')
+      OTHER=$((FG_COUNT - PR_COUNT))
       FG_PARTS=""
       if [ "$PR_COUNT" -gt 0 ]; then
-        PR_LABEL="PRs"; [ "$PR_COUNT" = "1" ] && PR_LABEL="PR"
-        # Show 🔁 indicator if any PRs have autoMerge enabled
-        if [ "$PR_AUTO_COUNT" -gt 0 ]; then
-          FG_PARTS="${PR_COUNT}🔁 ${PR_LABEL}"
-        else
-          FG_PARTS="${PR_COUNT} ${PR_LABEL}"
-        fi
+        LBL="PRs"; [ "$PR_COUNT" = "1" ] && LBL="PR"
+        [ "$PR_AUTO" -gt 0 ] && FG_PARTS="${PR_COUNT}🔁 ${LBL}" || FG_PARTS="${PR_COUNT} ${LBL}"
       fi
-      if [ "$OTHER_COUNT" -gt 0 ]; then
-        OTHER_DATA=$(echo "$BRIDGE_CONTENT" | jq -r '([.foreground[] | select(.site != "github-pr")][0] // {}) | [.icon // "•", .title // "", .detail // ""] | @tsv')
-        IFS=$'\t' read -r OTHER_ICON OTHER_TITLE OTHER_DETAIL <<< "$OTHER_DATA"
-        [ -n "$FG_PARTS" ] && FG_PARTS="${FG_PARTS} "
-        if [ -n "$OTHER_DETAIL" ]; then
-          FG_PARTS="${FG_PARTS}${OTHER_ICON} ${OTHER_TITLE:0:10} ${OTHER_DETAIL:0:20}"
-        else
-          FG_PARTS="${FG_PARTS}${OTHER_ICON} ${OTHER_TITLE:0:10}"
-        fi
+      if [ "$OTHER" -gt 0 ]; then
+        IFS=$'\t' read -r O_ICON O_TITLE O_DETAIL <<< "$(echo "$BRIDGE_CONTENT" | jq -r '([.foreground[] | select(.site != "github-pr")][0] // {}) | [.icon // "•", .title // "", .detail // ""] | @tsv')"
+        [ -n "$FG_PARTS" ] && FG_PARTS+=" "
+        [ -n "$O_DETAIL" ] && FG_PARTS+="${O_ICON} ${O_TITLE:0:10} ${O_DETAIL:0:20}" || FG_PARTS+="${O_ICON} ${O_TITLE:0:10}"
       fi
       FOREGROUND_PART=" ${DIM}›${RESET} ${DIM}${FG_PARTS}${RESET}"
     fi
   fi
-fi
 
-# Check for notification (green, expires after timestamp)
-NOTIFICATION_PART=""
-if [ -f "$BRIDGE_FILE" ]; then
+  # Notification (green, expires)
   NOTIF_MSG=$(echo "$BRIDGE_CONTENT" | jq -r '.notification.message // empty')
   NOTIF_EXP=$(echo "$BRIDGE_CONTENT" | jq -r '.notification.expires // 0')
   NOW_MS=$(($(date +%s) * 1000))
-  if [ -n "$NOTIF_MSG" ] && [ "$NOTIF_EXP" -gt "$NOW_MS" ] 2>/dev/null; then
-    NOTIFICATION_PART=" ${DIM}›${RESET} ${GREEN}${NOTIF_MSG}${RESET}"
-  fi
+  [ -n "$NOTIF_MSG" ] && [ "$NOTIF_EXP" -gt "$NOW_MS" ] 2>/dev/null && FOREGROUND_PART+=" ${DIM}›${RESET} ${GREEN}${NOTIF_MSG}${RESET}"
 fi
 
-# Combine all parts (order: base > git > context > quota > daemon-stale > background > foreground > notification)
-printf '%b' "${BASE}${GIT_PART}${CONTEXT_PART}${QUOTA_PART}${DAEMON_STALE_PART}${BACKGROUND_PART}${FOREGROUND_PART}${NOTIFICATION_PART} ${CYAN}>${RESET}"
+printf '%b' "${BASE}${GIT_PART}${CONTEXT_PART}${QUOTA_PART}${DAEMON_STALE_PART}${BACKGROUND_PART}${FOREGROUND_PART} ${CYAN}>${RESET}"
