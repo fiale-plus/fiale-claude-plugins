@@ -290,6 +290,14 @@ jq '.focus.slackStatusSet = true' ~/.claude/status-config.json > /tmp/config.tmp
 
 This allows hub-ack-focus.md to know whether to clear status when ending focus.
 
+#### Trigger Contextual Music
+
+After activating focus, trigger focus music if enabled:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/bin/music-event.sh "focus_started" &
+```
+
 ## Step 8: Confirm Focus Mode
 
 ```

@@ -86,12 +86,19 @@ build_foreground() {
     last_review=$(echo "$pr_json" | jq -r '.lastSeen.reviewDecision // ""')
     last_state=$(echo "$pr_json" | jq -r '.lastSeen.state // ""')
     last_pending=$(echo "$pr_json" | jq -r '.lastSeen.checksPending // 0')
+    last_failed=$(echo "$pr_json" | jq -r '.lastSeen.checksFailed // 0')
     last_auto=$(echo "$pr_json" | jq -r '.lastSeen.autoMergeAttempted // false')
     auto_merge=$(echo "$pr_json" | jq -r '.autoMerge // false')
 
     icon_detail=$(determine_pr_icon "$state" "$is_draft" "$review" "$mergeable" "$checks_failed" "$checks_pending" "$checks_continuous")
     icon="${icon_detail%%:*}"; detail="${icon_detail#*:}"
     has_alert=$(detect_alert "$comments_count" "$last_comments" "$review" "$last_review" "$state" "$last_state" "$checks_pending" "$last_pending")
+
+    # Contextual music events
+    [ "$state" = "MERGED" ] && [ "$last_state" != "MERGED" ] && [ -n "$last_state" ] && \
+      "${PLUGIN_ROOT}/bin/music-event.sh" "pr_merged" &
+    [ "$checks_failed" -gt 0 ] && [ "$last_failed" -eq 0 ] && \
+      "${PLUGIN_ROOT}/bin/music-event.sh" "ci_failed" &
 
     # Auto-merge when ready and not attempted
     auto_merge_attempted="false"
@@ -105,7 +112,7 @@ build_foreground() {
     result+="{\"site\":\"github-pr\",\"icon\":\"$icon\",\"title\":\"PR #$number\",\"detail\":\"$detail\",\"hasAlert\":$has_alert,\"autoMerge\":$auto_merge}"
 
     [ -n "$updates" ] && updates+=" | "
-    updates+="(.foreground[] | select(.number == $number)) |= (.lastSeen = {commentsCount: $comments_count, reviewDecision: \"$review\", state: \"$state\", checksPending: $checks_pending, autoMergeAttempted: $auto_merge_attempted})"
+    updates+="(.foreground[] | select(.number == $number)) |= (.lastSeen = {commentsCount: $comments_count, reviewDecision: \"$review\", state: \"$state\", checksPending: $checks_pending, checksFailed: $checks_failed, autoMergeAttempted: $auto_merge_attempted})"
   done < <(jq -c '.foreground[] | select(.owner)' "$CONFIG" 2>/dev/null)
 
   [ -n "$updates" ] && jq "$updates" "$CONFIG" > "${CONFIG}.tmp" && mv "${CONFIG}.tmp" "$CONFIG"

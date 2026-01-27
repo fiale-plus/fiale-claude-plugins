@@ -92,7 +92,11 @@ Via `/hub-focus` during active focus:
 
 1. Clear Slack status (if set)
 2. Update: `active: false`, `lastEndTime: <now>`, `lastDuration: <minutes>`
-3. Show: "🎯 Focus ended - <N> minutes. Great work!"
+3. Trigger contextual music:
+   ```bash
+   ${CLAUDE_PLUGIN_ROOT}/bin/music-event.sh "focus_ended" &
+   ```
+4. Show: "🎯 Focus ended - <N> minutes. Great work!"
 
 ---
 
