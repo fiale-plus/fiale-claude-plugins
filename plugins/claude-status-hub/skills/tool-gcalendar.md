@@ -131,7 +131,7 @@ function checkAlerts(events, config) {
 
 | Error | Method | Solution |
 |-------|--------|----------|
-| Tab not found | chrome | Re-run `/hub-setup-gcalendar` |
+| Tab not found | chrome | Auto-recovered (see `connection-detect.md`) |
 | Wrong page | chrome | Navigate to calendar day view |
 | Session expired | playwright | Re-login via setup |
 | No events found | both | Check calendar view (use day view) |

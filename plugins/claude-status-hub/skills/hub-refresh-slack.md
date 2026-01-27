@@ -15,9 +15,16 @@ async function refreshSlack(config) {
 
   // Get data via appropriate method (see tool-slack.md for scripts)
   const data = await refreshViaMethod(connection.method, config, connection.tabId);
-  return processSlackData(data, config);
+  const result = processSlackData(data, config);
+
+  // If tab was auto-recovered, save updated config with new tabId
+  if (connection.wasRecovered) result.configUpdated = true;
+
+  return result;
 }
 ```
+
+**Auto-Recovery:** If the Slack tab was closed, `detectSlackConnection` auto-opens it (see `connection-detect.md`). The new tabId is stored in `config.slack.chrome.tabId` and should be persisted after successful refresh.
 
 ## Process Slack Data
 

@@ -31,7 +31,19 @@ Extract: `background.service`, `background.tabId`, `foreground[]`, `calendar` co
 
 ## Step 2: Refresh Background (Music)
 
-If `background.service` has `tabId`, run via javascript_tool:
+If `background.service` is configured, ensure tab is open (auto-recover if needed):
+
+```javascript
+// Auto-recover music tab if needed (see connection-detect.md for ensureTabOpen)
+const musicService = config.background?.service; // 'youtube_music' or 'spotify'
+if (musicService) {
+  const { tabId, wasRecovered } = await ensureTabOpen(musicService, config);
+  config.background.tabId = tabId;
+  if (wasRecovered) configUpdated = true;
+}
+```
+
+Then run extraction via javascript_tool:
 
 **YouTube Music:**
 ```javascript

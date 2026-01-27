@@ -27,6 +27,69 @@ Shared logic for detecting and selecting the best available connection method fo
 }
 ```
 
+## Service URLs
+
+Default URLs for auto-opening tabs when not found:
+
+```javascript
+const SERVICE_URLS = {
+  calendar: 'https://calendar.google.com/calendar/u/0/r/day',
+  slack: (config) => `https://${config.slack?.workspace || 'app.slack.com'}/client`,
+  youtube_music: 'https://music.youtube.com',
+  spotify: 'https://open.spotify.com'
+};
+```
+
+## Auto-Open Tab (Shared Logic)
+
+When a Chrome tab is not found, auto-open it instead of failing. This is the recovery flow used by all Chrome-bound services.
+
+```javascript
+async function ensureTabOpen(service, config, configPath = '~/.claude/status-config.json') {
+  const storedTabId = config[service]?.chrome?.tabId;
+
+  // Step 1: Check if stored tab is still valid
+  if (storedTabId) {
+    try {
+      const context = await mcp__claude-in-chrome__tabs_context_mcp({ createIfEmpty: false });
+      const tabExists = context?.tabs?.some(t => t.id === storedTabId);
+      if (tabExists) return { tabId: storedTabId, wasRecovered: false };
+    } catch (e) { /* tab not found, will recover */ }
+  }
+
+  // Step 2: Tab not found - auto-open new one
+  const url = typeof SERVICE_URLS[service] === 'function'
+    ? SERVICE_URLS[service](config)
+    : SERVICE_URLS[service];
+
+  if (!url) return { error: `No URL configured for ${service}` };
+
+  // Create new tab and navigate
+  const newTab = await mcp__claude-in-chrome__tabs_create_mcp();
+  const tabId = newTab.tabId;
+  await mcp__claude-in-chrome__navigate({ url, tabId });
+
+  // Wait for page load
+  await new Promise(r => setTimeout(r, 2000));
+
+  // Step 3: Update config with new tabId
+  config[service] = config[service] || {};
+  config[service].chrome = config[service].chrome || {};
+  config[service].chrome.tabId = tabId;
+  // Config should be written by caller after successful operation
+
+  return { tabId, wasRecovered: true, url };
+}
+```
+
+**Usage in refresh skills:**
+```javascript
+const { tabId, wasRecovered, error } = await ensureTabOpen('calendar', config);
+if (error) return { error };
+// Proceed with tabId - it's now guaranteed valid
+// If wasRecovered, save config after successful refresh
+```
+
 ## Generic MCP Check
 
 All MCP availability checks follow this pattern:
@@ -72,14 +135,17 @@ async function detectConnection(config, service) {
     const status = await checkMethodAvailable(method, config, service);
     if (status.ready) return { method, ...status };
     if (status.installed && method === 'chrome') {
-      const tabId = config[service]?.chrome?.tabId;
-      if (tabId) return { method: 'chrome', tabId };
-      return { method: 'chrome', needsSetup: true };
+      // Auto-recover: ensure tab is open, creating if needed
+      const { tabId, wasRecovered, error } = await ensureTabOpen(service, config);
+      if (error) continue; // Try next method
+      return { method: 'chrome', tabId, wasRecovered };
     }
   }
   return { method: 'unavailable', error: 'No connection method available' };
 }
 ```
+
+**Note:** When `wasRecovered: true`, the caller should save the updated config after a successful refresh to persist the new tabId.
 
 ## API Credentials Check (Slack only)
 

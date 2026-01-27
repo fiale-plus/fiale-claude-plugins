@@ -15,9 +15,16 @@ async function refreshCalendar(config) {
 
   // Get events via Chrome or Playwright (see tool-gcalendar.md for scripts)
   const events = await refreshViaMethod(connection.method, config, connection.tabId);
-  return processCalendarData(events, config);
+  const result = processCalendarData(events, config);
+
+  // If tab was auto-recovered, save updated config with new tabId
+  if (connection.wasRecovered) result.configUpdated = true;
+
+  return result;
 }
 ```
+
+**Auto-Recovery:** If the calendar tab was closed, `detectCalendarConnection` auto-opens it (see `connection-detect.md`). The new tabId is stored in `config.calendar.chrome.tabId` and should be persisted after successful refresh.
 
 ## Process Calendar Data
 
