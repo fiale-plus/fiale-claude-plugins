@@ -220,7 +220,7 @@ function checkAlerts(data, config) {
 | Error | Method | Solution |
 |-------|--------|----------|
 | MCP connection refused | mcp | Corporate firewall; try Chrome mode |
-| Tab not found | chrome | Re-run `/hub-setup-slack` |
+| Tab not found | chrome | Auto-recovered (see `connection-detect.md`) |
 | Session expired | playwright | Re-login via setup |
 | invalid_auth | api | Token expired; re-extract credentials |
 | ratelimited | all | Wait and retry |
