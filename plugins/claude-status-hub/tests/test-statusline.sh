@@ -155,19 +155,23 @@ fi
 echo ""
 echo "Testing stale daemon indicator..."
 
-# Test stale bridge (timestamp > 3 minutes old) shows skull
+# Test stale bridge (timestamp > 3 minutes old) shows skull when user is ACTIVE
+# Skull only appears when: user active (lastActivity < 3min) AND timestamp stale (> 3min)
 TESTS_RUN=$((TESTS_RUN + 1))
-OLD_TS=$(($(date +%s) * 1000 - 200000))  # 200 seconds ago
+NOW_MS=$(($(date +%s) * 1000))
+OLD_TS=$((NOW_MS - 200000))  # 200 seconds ago (stale)
+RECENT_ACTIVITY=$((NOW_MS - 60000))  # 60 seconds ago (active user)
 cat > "$BRIDGE" << EOF
 {
   "timestamp": $OLD_TS,
+  "lastActivity": $RECENT_ACTIVITY,
   "background": {"site": "off", "icon": "", "title": "", "detail": ""},
   "foreground": []
 }
 EOF
 output=$(run_statusline)
 if echo "$output" | grep -q "💀"; then
-  pass "Stale daemon shows skull indicator"
+  pass "Stale daemon shows skull indicator (user active)"
 else
   fail "Stale indicator" "contains 💀" "$output"
 fi

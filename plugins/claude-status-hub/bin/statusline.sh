@@ -116,9 +116,14 @@ if [ -f "$BRIDGE_FILE" ]; then
   FG_COUNT=$(echo "$BRIDGE_CONTENT" | jq -r '.foreground | length')
   HAS_ALERT=$(echo "$BRIDGE_CONTENT" | jq -r '[.foreground[] | select(.hasAlert == true)] | length > 0')
 
-  # Stale daemon check (>3 min)
-  AGE_MS=$(( $(date +%s) * 1000 - BRIDGE_TS ))
-  [ "$AGE_MS" -gt 180000 ] && DAEMON_STALE_PART=" ${DIM}›${RESET} ${RED}💀${RESET}"
+  # Smart stale daemon check: only show skull if user is active but daemon is stale
+  # With adaptive intervals, long refresh gaps are expected during idle periods
+  NOW_MS=$(( $(date +%s) * 1000 ))
+  LAST_ACTIVITY=$(echo "$BRIDGE_CONTENT" | jq -r '.lastActivity // 0')
+  ACTIVITY_AGE=$((NOW_MS - LAST_ACTIVITY))
+  TIMESTAMP_AGE=$((NOW_MS - BRIDGE_TS))
+  # Skull only when: user active (< 3 min) AND timestamp stale (> 3 min)
+  [ "$ACTIVITY_AGE" -lt 180000 ] && [ "$TIMESTAMP_AGE" -gt 180000 ] && DAEMON_STALE_PART=" ${DIM}›${RESET} ${RED}💀${RESET}"
 
   # Background data
   IFS=$'\t' read -r BG_SITE BG_ICON BG_TITLE BG_DETAIL <<< "$(echo "$BRIDGE_CONTENT" | jq -r '[.background.site, .background.icon, .background.title, .background.detail] | @tsv')"

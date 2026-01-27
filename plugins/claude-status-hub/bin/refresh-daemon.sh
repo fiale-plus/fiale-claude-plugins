@@ -1,11 +1,15 @@
 #!/bin/bash
 # Background daemon - refreshes status hub periodically
-# - Light refresh (PRs + music + focus check): every 90 seconds
-# - Full refresh (all services): every 6 minutes
+# - Light refresh (PRs + music + focus check): starts at 90s, grows with idle
+# - Full refresh (all services): starts at 270s, grows with idle
 # Started by SessionStart hook, runs until terminal closes
 
-INTERVAL=90
-FULL_REFRESH_EVERY=3  # 3 × 90s = 4.5 minutes
+# Interval bounds for adaptive refresh
+BASE_LIGHT=90           # 1.5 min base
+BASE_FULL=270           # 4.5 min base (3x light)
+CEILING_LIGHT=3600      # 1 hour ceiling
+CEILING_FULL=10800      # 3 hours ceiling
+
 LOCKFILE="/tmp/status-hub-daemon.lock"
 CONFIG="$HOME/.claude/status-config.json"
 BRIDGE="/tmp/status-hub.json"
@@ -14,6 +18,24 @@ MUSIC_SKILL="${PLUGIN_ROOT}/skills/hub-refresh-music.md"
 FULL_SKILL="${PLUGIN_ROOT}/skills/hub-refresh.md"
 PR_SCRIPT="${PLUGIN_ROOT}/bin/refresh-prs.sh"
 FULL_ALLOWED="Read,Write,Bash,mcp__claude-in-chrome__*,mcp__plugin_sentry_sentry__*,mcp__tradingview__*"
+
+# Calculate intervals based on idle time (grows linearly from base to ceiling)
+get_intervals() {
+  local now_ms=$(($(date +%s) * 1000))
+  local last_activity=$(jq -r '.lastActivity // 0' "$BRIDGE" 2>/dev/null || echo 0)
+  local idle_ms=$((now_ms - last_activity))
+  local idle_min=$((idle_ms / 60000))
+
+  # Grow linearly: base + idle_minutes * growth_rate, capped at ceiling
+  # Growth rates chosen so ceiling is reached after ~2 hours idle
+  local light=$((BASE_LIGHT + idle_min * 29))
+  local full=$((BASE_FULL + idle_min * 88))
+
+  [ $light -gt $CEILING_LIGHT ] && light=$CEILING_LIGHT
+  [ $full -gt $CEILING_FULL ] && full=$CEILING_FULL
+
+  echo "$light $full"
+}
 
 # Check if focus mode needs a break reminder
 check_focus_break() {
@@ -87,10 +109,12 @@ echo "${PLUGIN_VERSION}:$$" > "$LOCKFILE"
 trap "rm -f $LOCKFILE" EXIT INT TERM
 
 # Main loop
-ITERATION=0
+LAST_FULL_REFRESH=0
 while true; do
+  # Calculate adaptive intervals based on user activity
+  read INTERVAL FULL_INTERVAL <<< $(get_intervals)
+
   sleep $INTERVAL
-  ITERATION=$((ITERATION + 1))
 
   # Self-check: exit if plugin was updated (new version will spawn fresh daemon)
   INSTALLED_VERSION=$(jq -r '.version' "${PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null || echo "unknown")
@@ -102,16 +126,19 @@ while true; do
   [ -f "$CONFIG" ] || continue
 
   # Check if bridge needs refresh
+  NOW_SEC=$(date +%s)
   if [ -f "$BRIDGE" ]; then
     BRIDGE_TS=$(jq -r '.timestamp // 0' "$BRIDGE" 2>/dev/null)
-    NOW_MS=$(($(date +%s) * 1000))
+    NOW_MS=$((NOW_SEC * 1000))
     AGE_MS=$((NOW_MS - BRIDGE_TS))
     # Skip if bridge was updated recently (< 60s)
     [ "$AGE_MS" -lt 60000 ] && continue
   fi
 
-  # Every Nth iteration: full refresh (all services)
-  if [ $((ITERATION % FULL_REFRESH_EVERY)) -eq 0 ]; then
+  # Full refresh if enough time has passed since last one
+  SINCE_FULL=$((NOW_SEC - LAST_FULL_REFRESH))
+  if [ "$SINCE_FULL" -ge "$FULL_INTERVAL" ]; then
+    LAST_FULL_REFRESH=$NOW_SEC
     timeout 120 claude -p --chrome --allowedTools "$FULL_ALLOWED" -- \
       "Read and follow the hub-refresh skill at $FULL_SKILL" 2>/dev/null || true
   else

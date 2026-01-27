@@ -48,10 +48,15 @@ else
   FG=$(jq '.foreground // []' "$BRIDGE" 2>/dev/null || echo '[]')
 fi
 
+# Preserve lastActivity or initialize to now
+LAST_ACTIVITY=$(jq -r '.lastActivity // 0' "$BRIDGE" 2>/dev/null || echo 0)
+[ "$LAST_ACTIVITY" = "0" ] || [ "$LAST_ACTIVITY" = "null" ] && LAST_ACTIVITY="$TIMESTAMP"
+
 # Write updated bridge file with root-level timestamp
 cat > "$BRIDGE" << EOF
 {
   "timestamp": $TIMESTAMP,
+  "lastActivity": $LAST_ACTIVITY,
   "background": {
     "site": "$SITE",
     "icon": "$ICON",
