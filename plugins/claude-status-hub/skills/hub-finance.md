@@ -106,7 +106,19 @@ Before saving, verify TradingView MCP is available by calling:
 mcp__tradingview__lookup_symbols(symbols: ["NASDAQ:AAPL"])
 ```
 
-If this fails, inform user that TradingView MCP server needs to be configured.
+If this fails, display:
+
+```
+⚠️ TradingView MCP not available
+
+Finance tracking requires the TradingView plugin. Install it with:
+
+  /plugin install tradingview
+
+Then run /hub-finance again.
+```
+
+Do NOT proceed with setup if the MCP is unavailable.
 
 ## Confirm Setup
 
