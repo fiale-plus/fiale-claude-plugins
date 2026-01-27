@@ -12,6 +12,13 @@ SKILL="${CLAUDE_PLUGIN_ROOT}/skills/hub-refresh.md"
 LOG="/tmp/status-hub-refresh.log"
 LOCKFILE="/tmp/status-hub.lock"
 
+# Always update lastActivity (user activity tracking for adaptive intervals)
+NOW_MS=$(($(date +%s) * 1000))
+if [ -f "$BRIDGE" ]; then
+  jq --argjson ts "$NOW_MS" '.lastActivity = $ts' "$BRIDGE" > "${BRIDGE}.tmp" && mv "${BRIDGE}.tmp" "$BRIDGE"
+  log "Updated lastActivity to $NOW_MS"
+fi
+
 # No config = nothing to track
 [ -f "$CONFIG" ] || { log "No config, exiting"; exit 0; }
 
