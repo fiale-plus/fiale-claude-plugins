@@ -79,6 +79,9 @@ check_focus_break() {
 
     # Update last reminder time in config
     jq --argjson ts "$now_ms" '.focus.lastBreakReminder = $ts' "$CONFIG" > "${CONFIG}.tmp" && mv "${CONFIG}.tmp" "$CONFIG"
+
+    # Contextual music event
+    "${PLUGIN_ROOT}/bin/music-event.sh" "break_reminder" &
   fi
 }
 

@@ -46,6 +46,11 @@ function processCalendarData(events, config) {
     hasAlert = minutesUntil > 0 && minutesUntil <= alertMinutes;
   }
 
+  // Trigger contextual music when alert state changes to true
+  if (hasAlert && !config.calendar?.lastSeen?.hasAlert) {
+    // Bash: ${CLAUDE_PLUGIN_ROOT}/bin/music-event.sh "meeting_starting" &
+  }
+
   return { events: parsed.slice(0, 5), nextMeeting, hasAlert };
 }
 ```
