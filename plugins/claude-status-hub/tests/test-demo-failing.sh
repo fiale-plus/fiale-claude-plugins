@@ -31,7 +31,7 @@ fi
 # Test 2: This intentionally fails
 TESTS_RUN=$((TESTS_RUN + 1))
 expected="success"
-actual="failure"
+actual="epic_failure"
 if [ "$expected" = "$actual" ]; then
   pass "Demo assertion (this should fail)"
 else
