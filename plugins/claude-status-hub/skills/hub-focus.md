@@ -146,9 +146,9 @@ Store focus state in config:
 }
 ```
 
-### Create Calendar Focus Block (Optional)
+### Create Calendar Focus Block (Always Suggest)
 
-Offer to block focus time in calendar:
+**IMPORTANT:** Always offer to block focus time in calendar, even when the user chose to override conflicting meetings. This helps others see when you're in focus mode and prevents new meetings from being scheduled.
 
 ```
 📅 Block focus time in calendar?
