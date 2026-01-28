@@ -5,26 +5,7 @@
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
-```
-~/ [████████░░] 80% › ⚡85% › ▶ Blinding Lights - The Weeknd › 📅 Standup 5m › ✓#142 !#138 › 💬 @boss >
-
-/hub-tree
-Status Hub
-│
-├─ STATS
-│  ├─ Context: [████████░░] threshold 90%
-│  └─ Quota: ⚡85% threshold 80%
-│
-├─ FOREGROUND (alerts)
-│  ├─ #1  📅 Team Standup in 5m
-│  ├─ #2  ✓ PR #142 anthropics/claude-code (approved)
-│  ├─ #3  ! PR #138 anthropics/claude-code (changes requested)
-│  ├─ #4  💬 slack: @boss (1 DM)
-│  └─ #5  📊 finance: AAPL +5.2%
-│
-└─ BACKGROUND (ambient)
-   └─ #6  ▶ youtube-music: Blinding Lights - The Weeknd
-```
+<!-- VIDEO_PLACEHOLDER: hub-demo.mp4 -->
 
 Track PRs, calendar, Slack, stocks, music—all surfaced in your Claude Code statusline.
 

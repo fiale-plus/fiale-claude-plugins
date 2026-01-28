@@ -9,26 +9,7 @@ Plugins for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
 **Your world at a glance, without leaving the terminal.**
 
-```
-~/ [████████░░] 80% › ⚡85% › ▶ Blinding Lights - The Weeknd › 📅 Standup 5m › ✓#142 !#138 › 💬 @boss >
-
-/hub-tree
-Status Hub
-│
-├─ STATS
-│  ├─ Context: [████████░░] threshold 90%
-│  └─ Quota: ⚡85% threshold 80%
-│
-├─ FOREGROUND (alerts)
-│  ├─ #1  📅 Team Standup in 5m
-│  ├─ #2  ✓ PR #142 anthropics/claude-code (approved)
-│  ├─ #3  ! PR #138 anthropics/claude-code (changes requested)
-│  ├─ #4  💬 slack: @boss (1 DM)
-│  └─ #5  📊 finance: AAPL +5.2%
-│
-└─ BACKGROUND (ambient)
-   └─ #6  ▶ youtube-music: Blinding Lights - The Weeknd
-```
+<!-- VIDEO_PLACEHOLDER: hub-demo.mp4 -->
 
 Track PRs, calendar, Slack, stocks, music—all in your statusline.
 
