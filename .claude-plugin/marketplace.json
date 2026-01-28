@@ -6,19 +6,33 @@
     "name": "Pavel Fadeev",
     "email": "pavel.fadeev@gmail.com"
   },
-  "keywords": ["claude-code", "plugins", "marketplace", "extensions", "cli", "developer-tools"],
+  "keywords": [
+    "claude-code",
+    "plugins",
+    "marketplace",
+    "extensions",
+    "cli",
+    "developer-tools"
+  ],
   "plugins": [
     {
       "name": "claude-status-hub",
       "description": "Monitor what matters - PRs, music, custom alerts - right in your Claude Code statusline",
-      "version": "1.5.0",
+      "version": "1.5.1",
       "author": {
         "name": "Pavel Fadeev",
         "email": "pavel.fadeev@gmail.com"
       },
       "source": "./plugins/claude-status-hub",
       "category": "productivity",
-      "keywords": ["statusline", "github-pr", "calendar", "music", "alerts", "notifications"]
+      "keywords": [
+        "statusline",
+        "github-pr",
+        "calendar",
+        "music",
+        "alerts",
+        "notifications"
+      ]
     },
     {
       "name": "tradingview",
@@ -30,7 +44,16 @@
       },
       "source": "./plugins/tradingview",
       "category": "finance",
-      "keywords": ["tradingview", "stocks", "forex", "crypto", "etf", "screening", "investing", "market-data"]
+      "keywords": [
+        "tradingview",
+        "stocks",
+        "forex",
+        "crypto",
+        "etf",
+        "screening",
+        "investing",
+        "market-data"
+      ]
     }
   ]
 }

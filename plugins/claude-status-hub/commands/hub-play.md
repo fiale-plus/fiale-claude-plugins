@@ -19,7 +19,7 @@ Control music playback on YouTube Music or Spotify.
 
 1. Read `~/.claude/status-config.json` for `background.service` and `background.tabId`
 2. If no background service, check browser tabs for music.youtube.com or open.spotify.com
-3. If no music tab found, ask which service to use
+3. If no music tab found, open a new tab with YouTube Music (default) or ask user preference
 
 ## Play Query
 
