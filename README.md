@@ -30,7 +30,9 @@ Status Hub
    └─ #6  ▶ youtube-music: Blinding Lights - The Weeknd
 ```
 
-Track PRs, calendar, Slack, stocks, music—all surfaced in your statusline. `/hub-ack` for smart actions.
+Track PRs, calendar, Slack, stocks, music—all in your statusline.
+
+**The flow:** `/hub-setup` → add monitors → alerts appear → `/hub-ack` for smart actions (merge PR, join meeting, reply to Slack).
 
 **Install:**
 ```bash
@@ -39,7 +41,7 @@ Track PRs, calendar, Slack, stocks, music—all surfaced in your statusline. `/h
 /hub-setup
 ```
 
-→ [Full documentation](plugins/claude-status-hub)
+→ [Full documentation](plugins/claude-status-hub) — workflow examples, all services, commands
 
 ## TradingView
 
