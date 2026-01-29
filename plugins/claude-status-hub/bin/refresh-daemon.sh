@@ -10,7 +10,7 @@ BASE_FULL=270           # 4.5 min base (3x light)
 CEILING_LIGHT=3600      # 1 hour ceiling
 CEILING_FULL=10800      # 3 hours ceiling
 
-LOCKFILE="/tmp/status-hub-daemon.lock"
+LOCKDIR="/tmp/status-hub-daemon.lock.d"
 CONFIG="$HOME/.claude/status-config.json"
 BRIDGE="/tmp/status-hub.json"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
@@ -18,6 +18,21 @@ MUSIC_SKILL="${PLUGIN_ROOT}/skills/hub-refresh-music.md"
 FULL_SKILL="${PLUGIN_ROOT}/skills/hub-refresh.md"
 PR_SCRIPT="${PLUGIN_ROOT}/bin/refresh-prs.sh"
 FULL_ALLOWED="Read,Write,Bash,mcp__claude-in-chrome__*,mcp__plugin_sentry_sentry__*,mcp__tradingview__*"
+
+# Semver comparison: returns 0 if $1 > $2
+version_gt() {
+  [ "$(printf '%s\n' "$1" "$2" | sort -V | tail -n1)" = "$1" ] && [ "$1" != "$2" ]
+}
+
+# Atomic lock acquisition using mkdir (portable to macOS and Linux)
+acquire_lock() {
+  if mkdir "$LOCKDIR" 2>/dev/null; then
+    echo "$$" > "$LOCKDIR/pid"
+    echo "$PLUGIN_VERSION" > "$LOCKDIR/version"
+    return 0
+  fi
+  return 1
+}
 
 # Calculate intervals based on idle time (grows linearly from base to ceiling)
 get_intervals() {
@@ -95,28 +110,36 @@ check_focus_break() {
 # Get plugin version for staleness detection
 PLUGIN_VERSION=$(jq -r '.version' "${PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null || echo "unknown")
 
-# Prevent multiple daemons (version-aware)
-if [ -f "$LOCKFILE" ]; then
-  LOCK_CONTENT=$(cat "$LOCKFILE" 2>/dev/null)
-  OLD_VERSION="${LOCK_CONTENT%%:*}"
-  OLD_PID="${LOCK_CONTENT##*:}"
+# Prevent multiple daemons (version-aware, atomic locking)
+if [ -d "$LOCKDIR" ]; then
+  OLD_PID=$(cat "$LOCKDIR/pid" 2>/dev/null)
+  OLD_VERSION=$(cat "$LOCKDIR/version" 2>/dev/null)
 
   if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
     if [ "$OLD_VERSION" = "$PLUGIN_VERSION" ]; then
-      exit 0  # Same version daemon running, all good
+      # Same version daemon running, exit
+      exit 0
     fi
-    # Version mismatch - kill old daemon so we can start fresh
-    kill "$OLD_PID" 2>/dev/null
-    sleep 1
+    if version_gt "$PLUGIN_VERSION" "$OLD_VERSION"; then
+      # We're newer - kill old daemon and take over
+      kill "$OLD_PID" 2>/dev/null
+      sleep 1
+      rm -rf "$LOCKDIR"
+    else
+      # Old daemon is same or newer version, exit
+      exit 0
+    fi
+  else
+    # Stale lock (PID not running) - remove it
+    rm -rf "$LOCKDIR"
   fi
-  rm -f "$LOCKFILE"
 fi
 
-# Write our version:PID to lockfile
-echo "${PLUGIN_VERSION}:$$" > "$LOCKFILE"
+# Acquire atomic lock
+acquire_lock || exit 0
 
 # Cleanup on exit
-trap "rm -f $LOCKFILE" EXIT INT TERM
+trap "rm -rf '$LOCKDIR'" EXIT INT TERM
 
 # Main loop
 LAST_FULL_REFRESH=0
@@ -129,7 +152,7 @@ while true; do
   # Self-check: exit if plugin was updated (new version will spawn fresh daemon)
   INSTALLED_VERSION=$(jq -r '.version' "${PLUGIN_ROOT}/.claude-plugin/plugin.json" 2>/dev/null || echo "unknown")
   if [ "$INSTALLED_VERSION" != "$PLUGIN_VERSION" ]; then
-    rm -f "$LOCKFILE"
+    rm -rf "$LOCKDIR"
     exit 0
   fi
 
