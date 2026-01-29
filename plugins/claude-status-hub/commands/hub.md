@@ -62,7 +62,11 @@ gh pr view <number> --repo <owner>/<repo> --json state,isDraft,reviewDecision,st
    - D = Draft
    - ✓ = Approved + all checks pass
 4. Read `~/.claude/status-config.json` for lastSeen state
-5. Update config with new PR(s) in `foreground` array
+5. Update config with new PR(s) in `foreground` array:
+   - Check if PR already exists (match by owner/repo/number)
+   - If exists: update in place using jq `|=` operator
+   - If new: append to existing array with `+= [$new_item]`
+   - **NEVER replace the entire foreground array - always merge** (see `docs/data-safety-guidelines.md`)
 6. Write bridge file `/tmp/status-hub.json` - set timestamp at root, preserve `background`, update `foreground` array:
 
    **CRITICAL:** Generate current timestamp in milliseconds: `$(($(date +%s) * 1000))`

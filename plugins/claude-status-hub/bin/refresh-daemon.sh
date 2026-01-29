@@ -126,6 +126,20 @@ while true; do
     exit 0
   fi
 
+  # Self-check: exit if another daemon took over the lockfile
+  # This handles the startup race condition: multiple sessions starting simultaneously
+  # all pass the initial lockfile check before any writes its PID. After one sleep cycle,
+  # only the last writer survives because all others see a mismatched lockfile.
+  # See docs/data-safety-guidelines.md for race condition prevention patterns.
+  if [ -f "$LOCKFILE" ]; then
+    CURRENT_LOCK=$(cat "$LOCKFILE" 2>/dev/null)
+    if [ "$CURRENT_LOCK" != "${PLUGIN_VERSION}:$$" ]; then
+      exit 0  # Another daemon owns the lock, gracefully exit
+    fi
+  else
+    exit 0  # Lockfile gone, exit
+  fi
+
   [ -f "$CONFIG" ] || continue
 
   # Check if bridge needs refresh

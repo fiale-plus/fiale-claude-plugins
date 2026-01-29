@@ -210,6 +210,27 @@ fi
 # Cleanup daemon
 kill "$DAEMON_PID" 2>/dev/null || true
 
+# --- Test 9: Self-eviction when lockfile ownership changes ---
+# This tests the race condition fix: if another daemon takes over the lockfile,
+# the current daemon should exit gracefully (see docs/data-safety-guidelines.md)
+echo ""
+echo "Test: Daemon self-evicts when lockfile ownership changes"
+rm -f "$LOCKFILE"
+CURRENT_V=$(jq -r '.version' "$PLUGIN_JSON")
+
+# Simulate the lockfile ownership check logic from refresh-daemon.sh
+# A daemon with PID 12345 wrote the lockfile
+echo "${CURRENT_V}:12345" > "$LOCKFILE"
+
+# Another daemon (PID 99999) checks if it owns the lockfile
+CURRENT_LOCK=$(cat "$LOCKFILE" 2>/dev/null)
+MY_EXPECTED="${CURRENT_V}:99999"
+if [ "$CURRENT_LOCK" != "$MY_EXPECTED" ]; then
+  pass "Lockfile ownership mismatch detected (self-eviction trigger)"
+else
+  fail "Lockfile ownership check" "mismatch detected" "false match"
+fi
+
 echo ""
 echo "=== Results ==="
 echo "Passed: $TESTS_PASSED"

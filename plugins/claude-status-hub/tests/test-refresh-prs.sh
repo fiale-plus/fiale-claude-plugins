@@ -505,6 +505,45 @@ else
   fail "Bridge structure" "spotify bg + 1 fg" "$bg_site + $fg_count fg"
 fi
 
+# Test non-PR foreground items are preserved (see docs/data-safety-guidelines.md)
+TESTS_RUN=$((TESTS_RUN + 1))
+# Setup config with both PR and non-PR items
+cat > "$CONFIG" << EOF
+{
+  "foreground": [
+    {
+      "owner": "test",
+      "repo": "repo",
+      "number": 1,
+      "lastSeen": {}
+    },
+    {
+      "service": "slack",
+      "icon": "S",
+      "title": "3 unread",
+      "detail": "#general"
+    },
+    {
+      "service": "calendar",
+      "icon": "📅",
+      "title": "Meeting",
+      "detail": "in 10m"
+    }
+  ]
+}
+EOF
+create_mock_gh "OPEN" "false" "APPROVED" "MERGEABLE" 0 0 0
+run_refresh
+fg_count=$(jq -r '.foreground | length' "$BRIDGE")
+slack_exists=$(jq -r '.foreground[] | select(.service == "slack") | .title' "$BRIDGE")
+calendar_exists=$(jq -r '.foreground[] | select(.service == "calendar") | .title' "$BRIDGE")
+pr_exists=$(jq -r '.foreground[] | select(.site == "github-pr") | .title' "$BRIDGE")
+if [ "$fg_count" = "3" ] && [ "$slack_exists" = "3 unread" ] && [ "$calendar_exists" = "Meeting" ] && [ -n "$pr_exists" ]; then
+  pass "Non-PR foreground items preserved (Slack, Calendar)"
+else
+  fail "Non-PR preservation" "3 items (PR + Slack + Calendar)" "$fg_count items, slack='$slack_exists', calendar='$calendar_exists'"
+fi
+
 echo ""
 echo "Testing auto-merge functionality..."
 
