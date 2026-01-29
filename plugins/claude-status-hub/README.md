@@ -5,7 +5,7 @@
 [![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet)](https://docs.anthropic.com/en/docs/claude-code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
-<!-- VIDEO_PLACEHOLDER: hub-demo.mp4 -->
+<video src="assets/demo.mp4" width="100%" autoplay loop muted playsinline></video>
 
 Track PRs, calendar, Slack, stocks, music—all surfaced in your Claude Code statusline.
 
