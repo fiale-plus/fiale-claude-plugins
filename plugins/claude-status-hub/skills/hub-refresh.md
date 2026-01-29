@@ -1,25 +1,14 @@
 # Hub Refresh - Internal Skill
 
-Refresh status hub background and foreground items efficiently.
+Refresh status hub efficiently.
 
 ## Error Handling
 
-If ANY tool call fails, write error and stop:
-```bash
-${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh --error "Refresh failed: <brief description>"
-```
-
-Error is cleared on successful refresh or when user runs `/hub-setup` or `/hub-ack`.
+On failure: `${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh --error "Brief error"`. Cleared on next successful refresh.
 
 ## Data Sanitization
 
-All text fields written to bridge MUST be sanitized:
-```javascript
-function sanitize(str, maxLen = 30) {
-  return (str || '').replace(/[\n\r\t]/g, ' ').replace(/\\/g, '\\\\').substring(0, maxLen).trim();
-}
-```
-Limits: title 30 chars, detail 25 chars, artist 20 chars.
+See `lib-common.md`. Limits: title 30, detail 25, artist 20.
 
 ## Data Preservation
 
@@ -36,23 +25,11 @@ Key rules:
 cat ~/.claude/status-config.json
 ```
 
-Extract: `background.service`, `background.tabId`, `foreground[]`, `calendar` config.
+Extract: `background.service`, `background.tabId`, `foreground[]`, `calendar`.
 
 ## Step 2: Refresh Background (Music)
 
-If `background.service` is configured, ensure tab is open (auto-recover if needed):
-
-```javascript
-// Auto-recover music tab if needed (see connection-detect.md for ensureTabOpen)
-const musicService = config.background?.service; // 'youtube_music' or 'spotify'
-if (musicService) {
-  const { tabId, wasRecovered } = await ensureTabOpen(musicService, config);
-  config.background.tabId = tabId;
-  if (wasRecovered) configUpdated = true;
-}
-```
-
-Then run extraction via javascript_tool:
+Auto-recover tab if needed (see `connection-detect.md`).
 
 **YouTube Music:**
 ```javascript
@@ -72,31 +49,25 @@ Icon: `▶` playing, `⏸` paused.
 
 ## Step 2.5: Refresh Calendar
 
-If `calendar.connection === "chrome"` and `calendar.chrome.tabId` exists:
-- Follow `hub-refresh-calendar.md`
-- Only add to foreground if there's an upcoming meeting (returns non-null)
-- No meetings = skip (silence is the signal)
+If `calendar.connection === "chrome"`: follow `hub-refresh-calendar.md`. Add to foreground only if upcoming meeting.
 
-## Step 3: Refresh Foreground Items
+## Step 3: Refresh Foreground
 
-For each item in `foreground[]`, check for skill first:
-1. Built-in: `${CLAUDE_PLUGIN_ROOT}/skills/hub-refresh-<service>.md`
-2. User-authored: `${CLAUDE_PLUGIN_ROOT}/skills/hub-refresh-<service>.user.md`
+For each item, check for skill: `${CLAUDE_PLUGIN_ROOT}/skills/hub-refresh-<service>.md` or `.user.md`.
 
-### GitHub PRs (items with `.owner` field)
+### GitHub PRs
+
 ```bash
-gh pr view <number> --repo <owner>/<repo> --json state,isDraft,reviewDecision,statusCheckRollup,title,comments,mergeable,mergeStateStatus
+gh pr view <number> --repo <owner>/<repo> --json state,isDraft,reviewDecision,statusCheckRollup,title,comments,mergeable
 ```
 
-**Alert if:** new comments, state change, review decision change, checks failed, conflicts, or merge-ready.
+Alert if: new comments, state change, checks failed, conflicts, or merge-ready.
 
-**Icon priority:** `X` fails, `⚡` conflicts, `!` changes requested, `~` pending, `?` review needed, `D` draft, `🚀` merge-ready, `✓` approved.
+Icon priority: `X` `⚡` `!` `~` `?` `D` `🚀` `✓`.
 
-### Slack (`.service == "slack"`)
-Follow `hub-refresh-slack.md`.
+### Slack/Sentry
 
-### Sentry (`.service == "sentry"`)
-Use `mcp__plugin_sentry_sentry__search_issues` for unresolved issues.
+Follow respective `hub-refresh-*.md` skills.
 
 ## Step 4: Update Bridge
 
@@ -104,6 +75,6 @@ Use `mcp__plugin_sentry_sentry__search_issues` for unresolved issues.
 ${CLAUDE_PLUGIN_ROOT}/bin/update-bridge.sh '<service>' '<icon>' '<title>' '<artist>' --foreground '<json-array>'
 ```
 
-## Step 5: Write Updated Config
+## Step 5: Write Config
 
-Save changes to `~/.claude/status-config.json` (lastSeen values, hasAlert flags).
+Save `lastSeen` values and `hasAlert` flags.
