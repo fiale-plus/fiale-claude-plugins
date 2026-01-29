@@ -61,18 +61,25 @@ check_focus_break() {
 
   # Check for gap before next meeting (need at least 15 min)
   local next_meeting_start=$(jq -r '.calendar.lastSeen[0].startTime // 0' "$CONFIG" 2>/dev/null)
-  if [ "$next_meeting_start" -gt 0 ]; then
-    local min_until_meeting=$(( (next_meeting_start - now_ms) / 60000 ))
-    [ "$min_until_meeting" -ge 15 ] || return 0
-  fi
+  local next_suffix=""
 
-  # Trigger break reminder alert
-  local next_title=$(jq -r '.calendar.lastSeen[0].title // "nothing"' "$CONFIG" 2>/dev/null)
-  local min_until=${min_until_meeting:-"∞"}
+  if [ "$next_meeting_start" -gt "$now_ms" ]; then
+    # Meeting is in the future
+    local min_until_meeting=$(( (next_meeting_start - now_ms) / 60000 ))
+    if [ "$min_until_meeting" -ge 15 ]; then
+      local next_title=$(jq -r '.calendar.lastSeen[0].title // ""' "$CONFIG" 2>/dev/null)
+      [ -z "$next_title" ] && next_title="meeting"
+      next_suffix=" Next: ${next_title} in ${min_until_meeting}m"
+    else
+      # Meeting too soon - skip break reminder
+      return 0
+    fi
+  fi
+  # No meeting or meeting is far enough away - show break reminder
 
   # Update bridge with focus break alert
   if [ -f "$BRIDGE" ]; then
-    local alert_text="☕ ${duration_min}m focus. Break? Next: ${next_title} in ${min_until}m"
+    local alert_text="☕ ${duration_min}m focus. Break?${next_suffix}"
     jq --arg alert "$alert_text" \
        '.foreground = [{"service": "focus", "icon": "☕", "title": "Break reminder", "detail": $alert, "hasAlert": true}] + .foreground' \
        "$BRIDGE" > "${BRIDGE}.tmp" && mv "${BRIDGE}.tmp" "$BRIDGE"
