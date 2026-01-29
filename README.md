@@ -9,7 +9,7 @@ Plugins for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
 **Your world at a glance, without leaving the terminal.**
 
-<!-- VIDEO_PLACEHOLDER: hub-demo.mp4 -->
+![Status Hub Demo](plugins/claude-status-hub/assets/demo.gif)
 
 Track PRs, calendar, Slack, stocks, music—all in your statusline.
 
