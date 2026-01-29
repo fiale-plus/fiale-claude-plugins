@@ -116,7 +116,14 @@ build_foreground() {
   done < <(jq -c '.foreground[] | select(.owner)' "$CONFIG" 2>/dev/null)
 
   [ -n "$updates" ] && jq "$updates" "$CONFIG" > "${CONFIG}.tmp" && mv "${CONFIG}.tmp" "$CONFIG"
-  echo "${result}]"
+
+  # Preserve non-PR foreground items (Slack, Calendar, etc.) - see docs/data-safety-guidelines.md
+  NON_PR_ITEMS=$(jq -c '[.foreground[] | select(.owner | not)]' "$CONFIG" 2>/dev/null || echo '[]')
+  if [ "$NON_PR_ITEMS" != "[]" ] && [ "$NON_PR_ITEMS" != "null" ]; then
+    echo "${result}]" | jq --argjson nonpr "$NON_PR_ITEMS" '. + $nonpr'
+  else
+    echo "${result}]"
+  fi
 }
 
 FOREGROUND=$(build_foreground)

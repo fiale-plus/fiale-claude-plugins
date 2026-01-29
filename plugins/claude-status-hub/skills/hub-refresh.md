@@ -21,6 +21,15 @@ function sanitize(str, maxLen = 30) {
 ```
 Limits: title 30 chars, detail 25 chars, artist 20 chars.
 
+## Data Preservation
+
+**See `docs/data-safety-guidelines.md` for merge patterns.**
+
+Key rules:
+- Never overwrite entire foreground array
+- When refreshing one service, preserve items from other services
+- Use `jq` merge operators (`+`, `|=`) not full replacement
+
 ## Step 1: Read Config
 
 ```bash
