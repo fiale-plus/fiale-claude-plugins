@@ -255,8 +255,9 @@ else
   fail "Lockdir creation" "lockdir exists" "lockdir missing"
 fi
 
-# Cleanup daemon
+# Cleanup daemon and wait for its EXIT trap to complete
 kill "$DAEMON_PID" 2>/dev/null || true
+sleep 1
 
 # --- Test 9: Self-eviction when lockdir ownership changes ---
 # This tests the race condition fix: if another daemon takes over the lockdir,
