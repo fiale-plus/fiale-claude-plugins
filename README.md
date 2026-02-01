@@ -58,3 +58,4 @@ Screen stocks, forex, crypto, and ETFs using TradingView's 75+ fundamental and t
 MIT
 # Dummy Change
 # Dummy Change for PR
+# Dummy Change for PR
