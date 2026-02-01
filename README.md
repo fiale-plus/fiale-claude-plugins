@@ -56,3 +56,5 @@ Screen stocks, forex, crypto, and ETFs using TradingView's 75+ fundamental and t
 ## License
 
 MIT
+# Dummy Change
+# Dummy Change for PR
