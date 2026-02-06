@@ -168,4 +168,5 @@ jq --argjson config "$NEW_CONFIG" '.music.contextual = $config' \
 ## Requirements
 
 - Music service must be configured (`/hub-setup` → background service)
-- Chrome MCP must be available for browser automation
+- Chrome MCP must be available for browser automation (playback control)
+- For browser-based players (YouTube Music): `brew install nowplaying-cli` recommended for zero-token status detection
