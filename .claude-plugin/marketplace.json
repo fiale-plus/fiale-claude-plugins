@@ -18,7 +18,7 @@
     {
       "name": "claude-status-hub",
       "description": "Monitor what matters - PRs, music, custom alerts - right in your Claude Code statusline",
-      "version": "1.5.2",
+      "version": "1.5.4",
       "author": {
         "name": "Pavel Fadeev",
         "email": "pavel.fadeev@gmail.com"

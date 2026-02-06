@@ -38,6 +38,7 @@ acquire_lock() {
 get_intervals() {
   local now_ms=$(($(date +%s) * 1000))
   local last_activity=$(jq -r '.lastActivity // 0' "$BRIDGE" 2>/dev/null || echo 0)
+  [[ "$last_activity" =~ ^[0-9]+$ ]] || last_activity=0
   local idle_ms=$((now_ms - last_activity))
   local idle_min=$((idle_ms / 60000))
 
@@ -62,6 +63,9 @@ check_focus_break() {
   local start_time=$(jq -r '.focus.startTime // 0' "$CONFIG" 2>/dev/null)
   local break_after=$(jq -r '.focus.breakAfterMinutes // 75' "$CONFIG" 2>/dev/null)
   local last_reminder=$(jq -r '.focus.lastBreakReminder // 0' "$CONFIG" 2>/dev/null)
+  [[ "$start_time" =~ ^[0-9]+$ ]] || start_time=0
+  [[ "$break_after" =~ ^[0-9]+$ ]] || break_after=75
+  [[ "$last_reminder" =~ ^[0-9]+$ ]] || last_reminder=0
   local now_ms=$(($(date +%s) * 1000))
   local duration_min=$(( (now_ms - start_time) / 60000 ))
 
@@ -76,6 +80,7 @@ check_focus_break() {
 
   # Check for gap before next meeting (need at least 15 min)
   local next_meeting_start=$(jq -r '.calendar.lastSeen[0].startTime // 0' "$CONFIG" 2>/dev/null)
+  [[ "$next_meeting_start" =~ ^[0-9]+$ ]] || next_meeting_start=0
   local next_suffix=""
 
   if [ "$next_meeting_start" -gt "$now_ms" ]; then
@@ -139,7 +144,7 @@ fi
 acquire_lock || exit 0
 
 # Cleanup on exit
-trap "rm -rf '$LOCKDIR'" EXIT INT TERM
+trap "rm -rf '$LOCKDIR'" EXIT INT TERM HUP PIPE
 
 # Main loop
 LAST_FULL_REFRESH=0
@@ -156,18 +161,17 @@ while true; do
     exit 0
   fi
 
-  # Self-check: exit if another daemon took over the lockfile
+  # Self-check: exit if another daemon took over the lock
   # This handles the startup race condition: multiple sessions starting simultaneously
-  # all pass the initial lockfile check before any writes its PID. After one sleep cycle,
-  # only the last writer survives because all others see a mismatched lockfile.
-  # See docs/data-safety-guidelines.md for race condition prevention patterns.
-  if [ -f "$LOCKFILE" ]; then
-    CURRENT_LOCK=$(cat "$LOCKFILE" 2>/dev/null)
-    if [ "$CURRENT_LOCK" != "${PLUGIN_VERSION}:$$" ]; then
+  # all pass the initial lock check before any writes its PID. After one sleep cycle,
+  # only the last writer survives because all others see a mismatched PID.
+  if [ -d "$LOCKDIR" ]; then
+    CURRENT_PID=$(cat "$LOCKDIR/pid" 2>/dev/null)
+    if [ "$CURRENT_PID" != "$$" ]; then
       exit 0  # Another daemon owns the lock, gracefully exit
     fi
   else
-    exit 0  # Lockfile gone, exit
+    exit 0  # Lock gone, exit
   fi
 
   [ -f "$CONFIG" ] || continue
@@ -176,6 +180,7 @@ while true; do
   NOW_SEC=$(date +%s)
   if [ -f "$BRIDGE" ]; then
     BRIDGE_TS=$(jq -r '.timestamp // 0' "$BRIDGE" 2>/dev/null)
+    [[ "$BRIDGE_TS" =~ ^[0-9]+$ ]] || BRIDGE_TS=0
     NOW_MS=$((NOW_SEC * 1000))
     AGE_MS=$((NOW_MS - BRIDGE_TS))
     # Skip if bridge was updated recently (< 60s)
@@ -194,11 +199,9 @@ while true; do
       "$PR_SCRIPT" 2>/dev/null || true
     fi
 
-    # Light refresh: music if configured
-    SERVICE=$(jq -r '.background.service // "off"' "$CONFIG" 2>/dev/null)
-    if [ "$SERVICE" != "off" ]; then
-      timeout 30 claude -p --chrome --allowedTools "Read,Write,Bash,mcp__claude-in-chrome__*" -- \
-        "Read and follow the hub-refresh-music skill at $MUSIC_SKILL" 2>/dev/null || true
+    # Light refresh: music if configured (zero-token, uses OS-level APIs)
+    if [ -x "$PLUGIN_ROOT/bin/refresh-music.sh" ]; then
+      "$PLUGIN_ROOT/bin/refresh-music.sh" 2>/dev/null || true
     fi
 
     # Light refresh: check if focus mode needs break reminder
