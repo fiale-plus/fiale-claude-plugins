@@ -1,0 +1,13 @@
+{
+  "name": "mdbrowser-plugin",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "jsdom": "^25.0.0",
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "zod": "^3.23.0"
+  }
+}

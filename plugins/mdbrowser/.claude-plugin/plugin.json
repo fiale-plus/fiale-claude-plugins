@@ -1,0 +1,11 @@
+{
+  "name": "mdbrowser",
+  "version": "1.0.0",
+  "description": "Browse any website as markdown - one-shot fetch or interactive browser sessions with click/type/read",
+  "author": {
+    "name": "Pavel Fadeev",
+    "email": "pavel.fadeev@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": ["browser", "markdown", "web", "scraping", "headless", "puppeteer"]
+}
