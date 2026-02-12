@@ -54,6 +54,25 @@
         "investing",
         "market-data"
       ]
+    },
+    {
+      "name": "mdbrowser",
+      "description": "Browse any website as markdown - one-shot fetch or interactive browser sessions with click/type/read",
+      "version": "1.0.0",
+      "author": {
+        "name": "Pavel Fadeev",
+        "email": "pavel.fadeev@gmail.com"
+      },
+      "source": "./plugins/mdbrowser",
+      "category": "productivity",
+      "keywords": [
+        "browser",
+        "markdown",
+        "web",
+        "scraping",
+        "headless",
+        "puppeteer"
+      ]
     }
   ]
 }

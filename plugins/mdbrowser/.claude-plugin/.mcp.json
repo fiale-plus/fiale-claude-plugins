@@ -1,0 +1,6 @@
+{
+  "mdbrowser": {
+    "command": "bash",
+    "args": ["-c", "cd \"${CLAUDE_PLUGIN_ROOT}\" && [ -d node_modules ] || npm install --silent >&2 && exec node server/index.js"]
+  }
+}
