@@ -73,6 +73,26 @@
         "headless",
         "puppeteer"
       ]
+    },
+    {
+      "name": "cli-master",
+      "description": "Turn anything into a standalone CLI — web services, APIs, local tools, databases, or any process an agent can shell out to",
+      "version": "1.0.0",
+      "author": {
+        "name": "Pavel Fadeev",
+        "email": "pavel.fadeev@gmail.com"
+      },
+      "source": "./plugins/cli-master",
+      "category": "productivity",
+      "keywords": [
+        "cli",
+        "api",
+        "scaffolding",
+        "web-service",
+        "automation",
+        "cookies",
+        "chrome"
+      ]
     }
   ]
 }

@@ -26,5 +26,8 @@ yarn-error.log
 .claude/
 .mcp.json
 
+# Local-only CLIs (not pushed to remote)
+clis/*-local/
+
 # Worktrees
 .worktrees/

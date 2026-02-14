@@ -1,0 +1,83 @@
+#!/usr/bin/env node
+
+import { parseArgs } from 'node:util';
+
+const HELP = `
+{{NAME}} — {{DESCRIPTION}}
+
+Usage:
+  {{NAME}} <command> [options]
+
+Commands:
+{{COMMANDS}}
+
+Options:
+  --json                          Output as JSON instead of markdown
+  --profile <name>                Chrome profile (default: "Default")
+  --timeout <ms>                  Request timeout (default: 30000)
+  -h, --help                      Show help
+`.trim();
+
+async function main() {
+  const rawArgs = process.argv.slice(2);
+
+  let args;
+  try {
+    args = parseArgs({
+      args: rawArgs,
+      allowPositionals: true,
+      options: {
+        json:     { type: 'boolean', default: false },
+        profile:  { type: 'string', default: 'Default' },
+        timeout:  { type: 'string', default: '30000' },
+        help:     { type: 'boolean', short: 'h', default: false },
+      },
+    });
+  } catch (e) {
+    error(e.message);
+    process.exit(1);
+  }
+
+  const { values, positionals } = args;
+
+  if (values.help || !positionals.length) {
+    console.log(HELP);
+    process.exit(0);
+  }
+
+  const command = positionals[0];
+  const opts = {
+    profile: values.profile,
+    timeout: parseInt(values.timeout, 10),
+  };
+  const useJson = values.json;
+
+  try {
+    let output;
+
+    switch (command) {
+      // TODO: Add command cases after API discovery
+      // case 'example': {
+      //   const { getExample } = await import('./api.js');
+      //   const { formatExample } = await import('./format.js');
+      //   const data = await getExample(opts);
+      //   output = formatExample(data, { json: useJson });
+      //   break;
+      // }
+      default:
+        error(`Unknown command: ${command}\nRun with --help for usage.`);
+        process.exit(1);
+    }
+
+    process.stdout.write(output + '\n');
+  } catch (e) {
+    error(e.message);
+    process.exit(1);
+  }
+}
+
+function error(msg) {
+  process.stderr.write(`{{NAME}}: ${msg}\n`);
+}
+
+main();

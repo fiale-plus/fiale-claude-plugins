@@ -1,0 +1,40 @@
+# {{NAME}}-cli
+
+{{DESCRIPTION}}
+
+## Installation
+
+```bash
+cd clis/{{NAME}}
+npm install
+npm link  # makes '{{NAME}}' available globally
+```
+
+## Usage
+
+```bash
+{{NAME}} <command> [options]
+```
+
+### Commands
+
+<!-- TODO: Fill in after API discovery -->
+
+### Options
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON instead of markdown |
+| `--profile <name>` | Chrome profile (default: "Default") |
+| `--timeout <ms>` | Request timeout (default: 30000) |
+| `-h, --help` | Show help |
+
+## Authentication
+
+Uses Chrome cookie extraction (macOS only). Log into {{BASE_URL}} in Chrome first.
+
+## Requirements
+
+- Node.js >= 18
+- Chrome browser with active session on {{BASE_URL}}
+- macOS (for Chrome cookie decryption)

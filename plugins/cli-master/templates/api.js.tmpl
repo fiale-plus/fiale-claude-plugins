@@ -1,0 +1,60 @@
+import { get{{SERVICE_PASCAL}}Auth } from './auth.js';
+
+const BASE_URL = '{{BASE_URL}}';
+
+let _auth = null;
+
+async function auth(opts) {
+  if (!_auth) {
+    _auth = await get{{SERVICE_PASCAL}}Auth(opts);
+  }
+  return _auth;
+}
+
+async function request(url, opts = {}) {
+  const { token, cookieString } = await auth(opts);
+
+  const headers = {
+    'Accept': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    'Cookie': cookieString,
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const timeout = opts.timeout || 30000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const res = await fetch(url, {
+      headers,
+      signal: controller.signal,
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      _auth = null;
+      throw new Error(
+        `Authentication failed (${res.status}). ` +
+        'Make sure you are logged into {{DOMAIN}} in Chrome.'
+      );
+    }
+
+    if (!res.ok) {
+      throw new Error(`API error: ${res.status} ${res.statusText} for ${url}`);
+    }
+
+    return res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// TODO: Add endpoint functions after API discovery
+// Example:
+// export async function getItems(opts = {}) {
+//   const url = `${BASE_URL}/api/v1/items`;
+//   return request(url, opts);
+// }

@@ -1,0 +1,153 @@
+import { execSync } from 'node:child_process';
+import { copyFileSync, unlinkSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pbkdf2Sync, createDecipheriv } from 'node:crypto';
+
+const AVANZA_DOMAINS = ['.avanza.se', 'avanza.se', '.www.avanza.se'];
+
+/**
+ * Extract Chrome cookies for avanza.se and parse auth token.
+ * Returns { token, cookieString }.
+ */
+export async function getAvanzaAuth({ profile = 'Default' } = {}) {
+  if (process.platform !== 'darwin') {
+    throw new Error(
+      'Chrome cookie extraction is only supported on macOS.\n' +
+      'Linux support requires decrypting with GNOME Keyring or KWallet.\n' +
+      'Windows support requires DPAPI decryption.'
+    );
+  }
+
+  let Database;
+  try {
+    Database = (await import('better-sqlite3')).default;
+  } catch {
+    throw new Error(
+      'Chrome cookie extraction requires better-sqlite3.\n' +
+      'Install it with: npm install better-sqlite3'
+    );
+  }
+
+  const cookiesPath = join(
+    process.env.HOME,
+    'Library/Application Support/Google/Chrome',
+    profile,
+    'Cookies'
+  );
+
+  if (!existsSync(cookiesPath)) {
+    throw new Error(
+      `Chrome Cookies DB not found at: ${cookiesPath}\n` +
+      `Check your profile name (current: "${profile}"). ` +
+      `List profiles: ls ~/Library/Application\\ Support/Google/Chrome/`
+    );
+  }
+
+  const tmpPath = join(tmpdir(), `avanza-cookies-${Date.now()}.db`);
+  copyFileSync(cookiesPath, tmpPath);
+
+  for (const ext of ['-wal', '-shm']) {
+    const src = cookiesPath + ext;
+    if (existsSync(src)) {
+      copyFileSync(src, tmpPath + ext);
+    }
+  }
+
+  try {
+    const key = getDecryptionKey();
+    const db = new Database(tmpPath, { readonly: true });
+
+    const meta = db.prepare("SELECT value FROM meta WHERE key = 'version'").get();
+    const dbVersion = meta ? Number(meta.value) : 0;
+
+    const placeholders = AVANZA_DOMAINS.map(() => '?').join(', ');
+    const rows = db.prepare(
+      `SELECT host_key, name, encrypted_value, path, is_secure, is_httponly
+       FROM cookies
+       WHERE host_key IN (${placeholders})`
+    ).all(...AVANZA_DOMAINS);
+
+    db.close();
+
+    const cookies = [];
+    let token = null;
+
+    for (const row of rows) {
+      const value = decryptCookieValue(row.encrypted_value, key, dbVersion);
+      if (!value) continue;
+
+      cookies.push(`${row.name}=${value}`);
+
+      // Avanza auth cookies — discovered via Phase 0
+      if (row.name === 'AZASESSID' || row.name === 'csid' || row.name === 'aza-session') {
+        token = value;
+      }
+    }
+
+    if (!cookies.length) {
+      throw new Error(
+        'No Avanza cookies found. Make sure you are logged into avanza.se in Chrome.\n' +
+        `Profile: "${profile}"`
+      );
+    }
+
+    const cookieString = cookies.join('; ');
+
+    // JWT fallback
+    if (!token) {
+      for (const row of rows) {
+        const value = decryptCookieValue(row.encrypted_value, key, dbVersion);
+        if (value && value.includes('.') && value.split('.').length === 3) {
+          token = value;
+          break;
+        }
+      }
+    }
+
+    return { token, cookieString };
+  } finally {
+    for (const ext of ['', '-wal', '-shm']) {
+      const f = tmpPath + ext;
+      if (existsSync(f)) unlinkSync(f);
+    }
+  }
+}
+
+function getDecryptionKey() {
+  const chromePassword = execSync(
+    'security find-generic-password -w -s "Chrome Safe Storage" -a "Chrome"',
+    { encoding: 'utf8' }
+  ).trim();
+
+  return pbkdf2Sync(chromePassword, 'saltysalt', 1003, 16, 'sha1');
+}
+
+function decryptCookieValue(encrypted, key, dbVersion) {
+  if (!encrypted || encrypted.length === 0) return '';
+
+  const buf = Buffer.isBuffer(encrypted) ? encrypted : Buffer.from(encrypted);
+  if (buf.length < 3) return '';
+
+  if (buf[0] === 0x76 && buf[1] === 0x31 && buf[2] === 0x30) {
+    const ciphertext = buf.subarray(3);
+    if (ciphertext.length === 0) return '';
+
+    try {
+      const iv = Buffer.alloc(16, 0x20);
+      const decipher = createDecipheriv('aes-128-cbc', key, iv);
+      let decrypted = decipher.update(ciphertext);
+      decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+      if (dbVersion >= 24) {
+        decrypted = decrypted.subarray(32);
+      }
+
+      return decrypted.toString('utf8');
+    } catch {
+      return null;
+    }
+  }
+
+  return buf.toString('utf8');
+}

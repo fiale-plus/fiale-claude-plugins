@@ -1,0 +1,19 @@
+{
+  "name": "avanza-cli",
+  "version": "0.1.0",
+  "description": "CLI for Avanza — accounts, holdings, transactions, and portfolio overview via Chrome cookie auth",
+  "type": "module",
+  "bin": {
+    "avanza": "./src/cli.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2"
+  },
+  "optionalDependencies": {
+    "puppeteer": "^24.37.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

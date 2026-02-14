@@ -1,0 +1,11 @@
+{
+  "name": "cli-master",
+  "version": "1.0.0",
+  "description": "Turn anything into a standalone CLI — web services, APIs, local tools, databases, or any process an agent can shell out to",
+  "author": {
+    "name": "Pavel Fadeev",
+    "email": "pavel.fadeev@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": ["cli", "api", "scaffolding", "web-service", "automation", "cookies", "chrome"]
+}

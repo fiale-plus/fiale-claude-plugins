@@ -1,0 +1,22 @@
+/**
+ * Format {{SERVICE}} API responses as markdown tables or JSON.
+ */
+
+// TODO: Add formatters after API discovery. Follow this pattern:
+//
+// export function formatItems(data, { json = false } = {}) {
+//   if (json) return JSON.stringify(data, null, 2);
+//
+//   const items = Array.isArray(data) ? data : (data.results || data.items || []);
+//   if (!items.length) return 'No items found.';
+//
+//   const lines = ['# Items', ''];
+//   lines.push('| Name | Value |');
+//   lines.push('|------|-------|');
+//
+//   for (const item of items) {
+//     lines.push(`| ${item.name || '—'} | ${item.value || '—'} |`);
+//   }
+//
+//   return lines.join('\n');
+// }
