@@ -452,10 +452,15 @@ def generate_bar(mode: str, bar_index: int) -> list:
     return buffer
 
 
-def generate_fade_out(duration: float = 0.5) -> list:
-    """Short fade-out wash of white noise."""
+def generate_fade_out(duration: float = 0.50) -> list:
+    """Soft chord that fades to silence — played on vibes off to avoid a hard cut."""
     n = int(SAMPLE_RATE * duration)
-    return [random.uniform(-1, 1) * math.exp(-8 * i / n) * 0.05 for i in range(n)]
+    freqs = [220.0, 330.0, 440.0]  # A minor chord
+    return [
+        0.10 * sum(math.sin(2 * math.pi * f * i / SAMPLE_RATE) for f in freqs)
+        * (1.0 - i / n)
+        for i in range(n)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -505,8 +510,8 @@ def main() -> None:
             samples = generate_bar(play_mode, bar_index)
             bar_index += 1
 
-            # Fade in on mode transitions so the new mode doesn't blast in hard
-            if prev_play_mode is not None and play_mode != prev_play_mode:
+            # Fade in on startup and mode transitions so music never blasts in hard
+            if prev_play_mode is None or play_mode != prev_play_mode:
                 samples = fade_in(samples)
             prev_play_mode = play_mode
 
@@ -529,6 +534,20 @@ def main() -> None:
                 if not new_state.get("enabled", False):
                     proc.terminate()
                     proc.wait()
+                    # Play a short fade-out chord so the stop isn't a hard cut
+                    fd2, fade_path = tempfile.mkstemp(suffix=".wav")
+                    os.close(fd2)
+                    write_wav(generate_fade_out(), fade_path)
+                    fade_proc = subprocess.Popen(
+                        ["afplay", fade_path],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    fade_proc.wait()
+                    try:
+                        os.unlink(fade_path)
+                    except OSError:
+                        pass
                     break
 
             # Clean up temp file
