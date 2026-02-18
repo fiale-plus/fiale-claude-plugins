@@ -438,7 +438,7 @@ def generate_bar(mode: str, bar_index: int) -> list:
 
     # --- Reverb + normalize ---
     buffer = apply_reverb(buffer)
-    buffer = normalize(buffer)
+    buffer = normalize(buffer, peak=0.50)
 
     return buffer
 
