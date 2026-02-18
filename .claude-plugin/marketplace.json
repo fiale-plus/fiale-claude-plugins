@@ -73,6 +73,25 @@
         "headless",
         "puppeteer"
       ]
+    },
+    {
+      "name": "vibes",
+      "description": "Sentiment-driven musical phrases on Claude Code events — triumphant on success, contemplative when waiting",
+      "version": "1.0.0",
+      "author": {
+        "name": "Pavel Fadeev",
+        "email": "pavel.fadeev@gmail.com"
+      },
+      "source": "./plugins/vibes",
+      "category": "productivity",
+      "keywords": [
+        "audio",
+        "hooks",
+        "music",
+        "notifications",
+        "sound",
+        "mood"
+      ]
     }
   ]
 }
