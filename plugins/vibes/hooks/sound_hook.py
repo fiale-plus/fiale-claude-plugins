@@ -6,6 +6,11 @@ Hooks: Stop, Notification
 Moods: triumphant, oops, contemplative, neutral
 Synthesis: sine + octave harmonic + 5th harmonic, exponential decay, WAV output
 Playback: afplay (macOS), non-blocking
+
+When the continuous rhythm daemon is running (vibes on), this hook updates
+the daemon's mode to 'success' or 'error' rather than playing its own phrase.
+The daemon handles all audio; this file's phrase logic only runs when daemon
+is off (backward-compatible fallback).
 """
 
 import json
@@ -17,6 +22,54 @@ import subprocess
 import sys
 import tempfile
 import wave
+
+# ---------------------------------------------------------------------------
+# Vibes daemon integration — check state before anything else
+# ---------------------------------------------------------------------------
+
+_VIBES_STATE_FILE = os.path.expanduser("~/.claude/vibes.json")
+
+
+def _update_vibes_mode(input_data: dict) -> bool:
+    """
+    If vibes daemon is running, update its mode and return True (skip phrase).
+    Returns False if daemon is off (caller should run phrase logic).
+    """
+    try:
+        with open(_VIBES_STATE_FILE) as f:
+            state = json.load(f)
+    except Exception:
+        return False
+
+    if not state.get("enabled", False):
+        return False
+
+    # Determine success/error/waiting from transcript
+    hook_event = input_data.get("hook_event_name", "")
+    if hook_event == "Notification":
+        new_mode = "waiting"
+    else:
+        transcript_path = input_data.get("transcript_path", "")
+        new_mode = "success"  # default for Stop event
+        try:
+            with open(transcript_path) as f:
+                recent = f.read()[-4000:].lower()
+            errors = sum(recent.count(w) for w in ["error", "failed", "traceback", "exception", "cannot"])
+            if errors > 3:
+                new_mode = "error"
+        except Exception:
+            pass
+
+    import time
+    state["mode"] = new_mode
+    state["updated_at"] = int(time.time())
+    try:
+        with open(_VIBES_STATE_FILE, "w") as f:
+            json.dump(state, f)
+    except Exception:
+        pass
+
+    return True  # daemon handles audio
 
 # ---------------------------------------------------------------------------
 # Phrase library — notes as (frequency_hz, duration_s)
@@ -165,6 +218,10 @@ def main() -> None:
         input_data = json.load(sys.stdin)
     except Exception:
         input_data = {}
+
+    # If vibes daemon is running, let it handle audio — just update mode
+    if _update_vibes_mode(input_data):
+        sys.exit(0)
 
     mood   = detect_mood(input_data)
     phrase = random.choice(PHRASES[mood])
