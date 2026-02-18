@@ -53,6 +53,22 @@ Screen stocks, forex, crypto, and ETFs using TradingView's 75+ fundamental and t
 
 → [Full documentation](plugins/tradingview)
 
+## Vibes
+
+**Your session's emotional arc, in sound.**
+
+Plays a short musical phrase whenever Claude finishes a task or needs your attention. Mood is inferred from the transcript: triumphant on success, gentle descend on errors, unresolved on notifications, settled when neutral.
+
+Pure-Python synthesis — no audio files, no dependencies. Requires macOS (`afplay`).
+
+**Install:**
+```bash
+/plugin marketplace add fiale-plus/fiale-claude-plugins
+/plugin install vibes
+```
+
+→ [Full documentation](plugins/vibes)
+
 ## License
 
 MIT
