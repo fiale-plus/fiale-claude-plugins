@@ -20,9 +20,12 @@ _write_state() {
 
 case "${1:-}" in
     on)
-        # Serialize check-and-spawn across concurrent sessions with flock
-        exec 9>/tmp/vibes-spawn.lock
-        flock 9
+        # Serialize check-and-spawn across concurrent sessions (mkdir is atomic on macOS)
+        LOCK_DIR="/tmp/vibes-spawn.lock.d"
+        if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+            sleep 0.4  # another session is spawning — wait, then fall through to PID check
+        fi
+        trap 'rmdir "$LOCK_DIR" 2>/dev/null; trap - EXIT' EXIT
 
         state=$(_read_state)
         pid=$(echo "$state" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('daemon_pid',''))" 2>/dev/null || true)
