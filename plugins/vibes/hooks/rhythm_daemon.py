@@ -308,33 +308,42 @@ def synth_bass(freq: float, duration: float) -> list:
     return samples
 
 
-def synth_pad(freqs: list, duration: float) -> list:
-    """Sum of chord-tone sines, slow attack, sustained."""
+def synth_piano_note(freq: float, duration: float) -> list:
+    """Rhodes-style electric piano: harmonic partials with punchy attack + sustain decay."""
     n = int(SAMPLE_RATE * duration)
-    attack = int(min(0.8 * SAMPLE_RATE, n * 0.6))
+    # Partials: strong fundamental, bright 2nd, tapering higher harmonics
+    partials = [(1, 1.0), (2, 0.60), (3, 0.25), (4, 0.10), (5, 0.05)]
+    total_amp = sum(a for _, a in partials)
+    attack_n = max(1, int(0.001 * SAMPLE_RATE))  # 1ms punchy attack
+    tau_fast = 0.04                               # 40ms initial bark
+    tau_slow = max(duration * 0.5, 0.20)          # sustain tail
     samples = []
     for i in range(n):
         t = i / SAMPLE_RATE
-        env = min(1.0, i / attack) if attack > 0 else 1.0
-        wave_val = sum(math.sin(2 * math.pi * f * t) for f in freqs) / len(freqs)
-        samples.append(env * wave_val * 0.5)
+        if i < attack_n:
+            env = i / attack_n
+        else:
+            t2 = t - attack_n / SAMPLE_RATE
+            env = 0.5 * math.exp(-t2 / tau_fast) + 0.5 * math.exp(-t2 / tau_slow)
+        wave_val = sum(amp * math.sin(2 * math.pi * freq * k * t) for k, amp in partials)
+        samples.append(env * wave_val / total_amp)
     return samples
 
 
-def synth_melody_note(freq: float, duration: float) -> list:
-    """Sine + octave + 2-octave, piano-bell decay."""
+def synth_piano_chord(freqs: list, duration: float) -> list:
+    """Funky chord stab: staggered piano-style voicing, punchy and short."""
     n = int(SAMPLE_RATE * duration)
-    samples = []
-    for i in range(n):
-        t = i / SAMPLE_RATE
-        env = math.exp(-5 * t / duration)
-        wave_val = (
-            math.sin(2 * math.pi * freq * t)
-            + 0.4 * math.sin(2 * math.pi * freq * 2 * t)
-            + 0.2 * math.sin(2 * math.pi * freq * 4 * t)
-        )
-        samples.append(env * wave_val / 1.6)
-    return samples
+    buffer = [0.0] * n
+    stagger = int(0.012 * SAMPLE_RATE)  # 12ms stagger between chord notes
+    stab_dur = min(duration, 0.50)      # chord stab caps at 0.5s regardless of bar length
+    for idx, freq in enumerate(freqs):
+        note = synth_piano_note(freq, stab_dur)
+        onset = idx * stagger
+        for i, s in enumerate(note):
+            pos = onset + i
+            if pos < n:
+                buffer[pos] += s / len(freqs)
+    return buffer
 
 
 # ---------------------------------------------------------------------------
@@ -397,9 +406,9 @@ def generate_bar(mode: str, bar_index: int) -> list:
     bass = scale(synth_bass(bass_freq, bar_dur * 0.9), 0.35)
     buffer = mix(buffer, bass)
 
-    # --- Pad ---
+    # --- Chord stab ---
     chord_freqs = CHORDS.get(chord_name, [261.63, 329.63, 392.00])
-    pad = scale(synth_pad(chord_freqs, bar_dur), 0.10)
+    pad = scale(synth_piano_chord(chord_freqs, bar_dur), 0.18)
     buffer = mix(buffer, pad)
 
     # --- Melody (4-bar loop) ---
@@ -439,7 +448,7 @@ def generate_bar(mode: str, bar_index: int) -> list:
         if local_dur < 0.01:
             continue
 
-        mel = scale(synth_melody_note(freq, local_dur), 0.25)
+        mel = scale(synth_piano_note(freq, local_dur), 0.25)
         onset_sample = int(local_start * spb * SAMPLE_RATE)
         end = min(len(buffer), onset_sample + len(mel))
         for i, s in enumerate(mel[:end - onset_sample]):

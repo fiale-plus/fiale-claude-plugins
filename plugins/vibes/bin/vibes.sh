@@ -20,6 +20,10 @@ _write_state() {
 
 case "${1:-}" in
     on)
+        # Serialize check-and-spawn across concurrent sessions with flock
+        exec 9>/tmp/vibes-spawn.lock
+        flock 9
+
         state=$(_read_state)
         pid=$(echo "$state" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('daemon_pid',''))" 2>/dev/null || true)
 
