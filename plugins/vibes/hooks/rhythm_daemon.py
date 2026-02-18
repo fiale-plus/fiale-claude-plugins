@@ -144,7 +144,7 @@ DRUM_PATTERNS = {
 
 # 8th-note swing: positions (0-indexed) that get a slight push forward
 SWING_POSITIONS = {2, 6, 10, 14}
-SWING_OFFSET_S = 0.006  # +6ms
+SWING_OFFSET_S = 0.004  # +4ms
 
 # Melodic sequences: (note_name_or_None, duration_beats)
 # None = rest. 1 beat = 1 quarter note.
@@ -379,12 +379,12 @@ def generate_bar(mode: str, bar_index: int) -> list:
             if not hit:
                 continue
 
-            # Timing jitter ±8ms
-            jitter = random.uniform(-0.008, 0.008)
+            # Timing jitter ±2ms (tight, professional)
+            jitter = random.uniform(-0.002, 0.002)
             # Swing offset
             swing = SWING_OFFSET_S if step in SWING_POSITIONS else 0.0
-            # Velocity variation ±15%
-            vel = base_vol * random.uniform(0.85, 1.15)
+            # Velocity variation ±5% (consistent dynamics)
+            vel = base_vol * random.uniform(0.95, 1.05)
 
             onset = step * step_dur + jitter + swing
             onset_sample = max(0, int(onset * SAMPLE_RATE))
