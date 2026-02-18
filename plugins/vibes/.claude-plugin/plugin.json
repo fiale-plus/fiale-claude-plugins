@@ -1,0 +1,8 @@
+{
+  "name": "vibes",
+  "version": "1.0.0",
+  "description": "Sentiment-driven musical phrases on Claude Code events — triumphant on success, contemplative when waiting",
+  "author": { "name": "Pavel Fadeev", "email": "pavel.fadeev@gmail.com" },
+  "license": "MIT",
+  "keywords": ["claude-code", "audio", "hooks", "music", "notifications", "sound"]
+}
