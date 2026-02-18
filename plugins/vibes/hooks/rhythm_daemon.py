@@ -234,6 +234,15 @@ def normalize(samples: list, peak: float = 0.85) -> list:
     return [s * factor for s in samples]
 
 
+def fade_in(samples: list, duration: float = 0.30) -> list:
+    """Apply a linear fade-in to avoid hard entry after a mode switch."""
+    n = min(int(SAMPLE_RATE * duration), len(samples))
+    result = list(samples)
+    for i in range(n):
+        result[i] *= i / n
+    return result
+
+
 def write_wav(samples: list, path: str) -> None:
     clipped = [max(-32767, min(32767, int(s * 32767))) for s in samples]
     with wave.open(path, "w") as wf:
@@ -462,6 +471,7 @@ def main() -> None:
     base_mode = "flow"   # mode to return to after transient
     TRANSIENT_MODES = {"success", "error"}
     TRANSIENT_DURATION = 8  # bars
+    prev_play_mode = None  # track previous bar's mode for fade-in on transitions
 
     tmp_path = None
 
@@ -495,6 +505,11 @@ def main() -> None:
             samples = generate_bar(play_mode, bar_index)
             bar_index += 1
 
+            # Fade in on mode transitions so the new mode doesn't blast in hard
+            if prev_play_mode is not None and play_mode != prev_play_mode:
+                samples = fade_in(samples)
+            prev_play_mode = play_mode
+
             # Write to temp WAV
             fd, tmp_path = tempfile.mkstemp(suffix=".wav")
             os.close(fd)
@@ -507,16 +522,11 @@ def main() -> None:
                 stderr=subprocess.DEVNULL,
             )
 
-            # Poll while playing
+            # Poll while playing — let current bar finish on mode change (no hard cut)
             while proc.poll() is None:
                 time.sleep(0.1)
                 new_state = read_state()
                 if not new_state.get("enabled", False):
-                    proc.terminate()
-                    proc.wait()
-                    break
-                new_mode = new_state.get("mode", "flow")
-                if new_mode != current_mode:
                     proc.terminate()
                     proc.wait()
                     break
