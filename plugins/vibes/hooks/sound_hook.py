@@ -39,10 +39,10 @@ def _update_vibes_mode(input_data: dict) -> bool:
         with open(_VIBES_STATE_FILE) as f:
             state = json.load(f)
     except Exception:
-        return False
+        return True  # no state file — suppress audio until /vibes on is run
 
     if not state.get("enabled", False):
-        return False
+        return True  # vibes off — suppress all audio
 
     # Determine success/error/waiting from transcript
     hook_event = input_data.get("hook_event_name", "")

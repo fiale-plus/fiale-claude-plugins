@@ -470,13 +470,6 @@ def main() -> None:
             # Read state
             state = read_state()
             if not state.get("enabled", False):
-                # Play fade-out then exit
-                fade = generate_fade_out()
-                fd, tmp_path = tempfile.mkstemp(suffix=".wav")
-                os.close(fd)
-                write_wav(fade, tmp_path)
-                subprocess.run(["afplay", tmp_path], stdout=subprocess.DEVNULL,
-                               stderr=subprocess.DEVNULL)
                 break
 
             current_mode = state.get("mode", "flow")
@@ -537,16 +530,6 @@ def main() -> None:
 
             # Check if we should exit (disabled during polling)
             if not read_state().get("enabled", False):
-                fade = generate_fade_out()
-                fd, fp = tempfile.mkstemp(suffix=".wav")
-                os.close(fd)
-                write_wav(fade, fp)
-                subprocess.run(["afplay", fp], stdout=subprocess.DEVNULL,
-                               stderr=subprocess.DEVNULL)
-                try:
-                    os.unlink(fp)
-                except OSError:
-                    pass
                 break
 
     except KeyboardInterrupt:

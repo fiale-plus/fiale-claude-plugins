@@ -49,14 +49,14 @@ case "${1:-}" in
         state=$(_read_state)
         pid=$(echo "$state" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('daemon_pid',''))" 2>/dev/null || true)
 
-        # Signal daemon to stop by writing enabled:false
+        # Write disabled state
         now=$(date +%s)
         mode=$(echo "$state" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('mode','flow'))" 2>/dev/null || echo "flow")
         _write_state "{\"enabled\":false,\"daemon_pid\":${pid:-0},\"mode\":\"$mode\",\"updated_at\":$now}"
 
-        # Give daemon a moment to exit cleanly, then force-kill if needed
-        sleep 1
-        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+        # Kill daemon's afplay children first (they'd otherwise orphan and keep playing)
+        if [[ -n "$pid" ]]; then
+            pgrep -P "$pid" 2>/dev/null | xargs kill 2>/dev/null || true
             kill "$pid" 2>/dev/null || true
         fi
 
