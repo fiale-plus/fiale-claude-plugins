@@ -1,8 +1,8 @@
 {
   "name": "vibes",
-  "version": "1.1.0",
-  "description": "Sentiment-driven musical phrases on Claude Code events — triumphant on success, contemplative when waiting",
+  "version": "2.0.0",
+  "description": "Opinionated background music for Claude sessions — jazzy dinner jazz or Cafe del Mar Balearic chill, driven by chord progression not tool events",
   "author": { "name": "Pavel Fadeev", "email": "pavel.fadeev@gmail.com" },
   "license": "MIT",
-  "keywords": ["claude-code", "audio", "hooks", "music", "notifications", "sound"]
+  "keywords": ["claude-code", "audio", "hooks", "music", "ambient", "fluidsynth"]
 }

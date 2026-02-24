@@ -1,23 +1,18 @@
 {
   "hooks": {
-    "PreToolUse": [
+    "SessionStart": [
       {
-        "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/work_state.sh", "timeout": 3 }]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/work_state.sh --reset", "timeout": 3 }]
+        "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/vibes.sh --auto-start", "timeout": 5 }]
       }
     ],
     "Stop": [
       {
-        "hooks": [{ "type": "command", "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/sound_hook.py", "timeout": 10 }]
+        "hooks": [{ "type": "command", "command": "python3 -c \"import json,os,time; f=os.path.expanduser('~/.claude/vibes.json'); s=json.load(open(f)) if os.path.exists(f) else {}; s.update({'one_shot':'stop','updated_at':int(time.time())}); json.dump(s,open(f,'w'))\" 2>/dev/null || true", "timeout": 3 }]
       }
     ],
-    "Notification": [
+"SessionEnd": [
       {
-        "hooks": [{ "type": "command", "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/sound_hook.py", "timeout": 10 }]
+        "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/vibes.sh --fade-stop", "timeout": 10 }]
       }
     ]
   }

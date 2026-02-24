@@ -1,33 +1,499 @@
 #!/usr/bin/env python3
 """
-rhythm_daemon.py — continuous 4/4 rhythmic music engine for vibes plugin.
+rhythm_daemon.py — Two-mode FluidSynth music engine for vibes plugin.
 
-Runs as a background daemon (spawned by vibes.sh).
-Generates and plays music bar-by-bar, switching modes based on ~/.claude/vibes.json.
+Direct noteon/noteoff with sleep_until for bar-accurate MIDI timing.
+No sequencer API (pyfluidsynth 1.3.4 sequencer doesn't fire events on macOS).
+Single-threaded bar loop — state checked between bars.
 
-Modes: flow | focus | drive | waiting | success | error
-Synthesis: pure Python stdlib (wave, struct, math, random) — no external deps.
-Playback: afplay (macOS), one bar at a time.
+Modes:
+  jazzy  — 62 BPM dinner jazz   (32-bar AABA cycle through 4 classic progressions)
+  cafe   — 74 BPM Balearic chill (Am  → F  → C  → G,  16-bar cycle)
 """
 
 import json
-import math
 import os
 import random
-import struct
-import subprocess
 import sys
-import tempfile
 import time
-import wave
+
+try:
+    import fluidsynth
+except ImportError:
+    print("pyfluidsynth not installed — run plugins/vibes/bin/install.sh", file=sys.stderr)
+    sys.exit(1)
 
 # ---------------------------------------------------------------------------
-# State file
+# Paths
 # ---------------------------------------------------------------------------
 
 STATE_FILE = os.path.expanduser("~/.claude/vibes.json")
-SAMPLE_RATE = 44100
 
+SF2_SEARCH = [
+    os.path.expanduser("~/.claude/vibes/GeneralUser_GS.sf2"),
+    os.path.expanduser("~/.claude/vibes/MuseScore_General.sf2"),
+    "/opt/homebrew/share/fluid-synth/sf2/VintageDreamsWaves-v2.sf2",
+    "/usr/local/share/fluid-synth/sf2/VintageDreamsWaves-v2.sf2",
+    "/usr/share/sounds/sf2/FluidR3_GM.sf2",
+    "/usr/share/soundfonts/FluidR3_GM.sf2",
+]
+
+# ---------------------------------------------------------------------------
+# Channels and GM programs
+#
+#   Jazzy: CH_0 = Acoustic Grand Piano  CH_1 = Acoustic Bass   CH_DRUMS
+#   Cafe:  CH_0 = Electric Piano 1      CH_1 = Choir Pad       CH_2 = Finger Bass  CH_DRUMS
+# ---------------------------------------------------------------------------
+
+CH_0     = 0
+CH_1     = 1
+CH_2     = 2
+CH_DRUMS = 9   # pyfluidsynth is zero-indexed; GM channel 10 = index 9
+
+GM_ACOUSTIC_GRAND = 0
+GM_ELECTRIC_PIANO = 4
+GM_VIBRAPHONE     = 11   # clean, airy — cafe piano
+GM_ACOUSTIC_BASS  = 32
+GM_FINGER_BASS    = 33
+GM_CHOIR_PAD      = 91   # Pad 4: Choir
+GM_WARM_PAD       = 89   # Pad 2: Warm — stable, less lo-fi
+
+DRUM_KICK         = 35   # Bass Drum 1
+DRUM_BRUSH_SNARE  = 40   # Electric Snare (GM brush snare)
+DRUM_CLOSED_HIHAT = 42   # Closed Hi-Hat
+DRUM_PEDAL_HIHAT  = 44   # Pedal Hi-Hat ("chick" on 2 & 4)
+DRUM_RIDE         = 51   # Ride Cymbal 1
+DRUM_RIDE_BELL    = 53   # Ride Bell (brighter, section accent)
+
+# ---------------------------------------------------------------------------
+# Timing helpers
+# ---------------------------------------------------------------------------
+
+JAZZY_BPM = 62
+CAFE_BPM  = 74
+
+
+def sleep_until(t: float) -> None:
+    """Sleep until time.perf_counter() reaches t."""
+    remaining = t - time.perf_counter()
+    if remaining > 0.0005:
+        time.sleep(remaining)
+
+
+# ---------------------------------------------------------------------------
+# Velocity — Gaussian humanization
+# ---------------------------------------------------------------------------
+
+def _vel(base: int, spread: float = 0.12) -> int:
+    """Gaussian velocity clamped to [1, 127]."""
+    return max(1, min(127, int(random.gauss(base, base * spread))))
+
+
+# ---------------------------------------------------------------------------
+# Jazzy mode — 32-bar cycle, 4 classic 8-bar sections (2 bars per chord)
+#
+# MIDI note reference (C4=60):
+#   Bass octave : C2=36 D2=38 E2=40 F2=41 G2=43 A2=45 B2=47
+#   3rd octave  : C3=48 D3=50 E3=52 F3=53 G3=55 A3=57 B3=59
+#   4th octave  : C4=60 C#4=61 D4=62 F4=65 G4=67 A4=69 B4=71
+#                 E3=52 F#3=54 G#3=56
+#
+# Sections:
+#   Bars  1-8  : ii-V-I-vi         Dm7 → G7 → Cmaj7 → Am7
+#   Bars  9-16 : I-VI-ii-V         Cmaj7 → A7 → Dm7 → G7
+#   Bars 17-24 : iii-VI-ii-V       Em7 → A7 → Dm7 → G7
+#   Bars 25-32 : III7-VI7-II7-V7   E7 → A7 → D7 → G7  (secondary dominants)
+# ---------------------------------------------------------------------------
+
+JAZZY_BARS = [
+    # (chord_notes, bass_root, bass_fifth)
+
+    # --- Section 1: ii-V-I-vi in C ---
+    ([50, 53, 57, 60], 38, 45),   # Dm7   D3 F3 A3 C4  | D2→A2
+    ([50, 53, 57, 60], 38, 45),
+    ([55, 59, 62, 65], 43, 50),   # G7    G3 B3 D4 F4  | G2→D3
+    ([55, 59, 62, 65], 43, 50),
+    ([60, 64, 67, 71], 48, 55),   # Cmaj7 C4 E4 G4 B4  | C3→G3
+    ([60, 64, 67, 71], 48, 55),
+    ([57, 60, 64, 67], 45, 52),   # Am7   A3 C4 E4 G4  | A2→E3
+    ([57, 60, 64, 67], 45, 52),
+
+    # --- Section 2: I-VI-ii-V turnaround ---
+    ([60, 64, 67, 71], 48, 55),   # Cmaj7 C4 E4 G4 B4  | C3→G3
+    ([60, 64, 67, 71], 48, 55),
+    ([57, 61, 64, 67], 45, 52),   # A7    A3 C#4 E4 G4 | A2→E3
+    ([57, 61, 64, 67], 45, 52),
+    ([50, 53, 57, 60], 38, 45),   # Dm7   D3 F3 A3 C4  | D2→A2
+    ([50, 53, 57, 60], 38, 45),
+    ([55, 59, 62, 65], 43, 50),   # G7    G3 B3 D4 F4  | G2→D3
+    ([55, 59, 62, 65], 43, 50),
+
+    # --- Section 3: iii-VI-ii-V ---
+    ([52, 55, 59, 62], 40, 47),   # Em7   E3 G3 B3 D4  | E2→B2
+    ([52, 55, 59, 62], 40, 47),
+    ([57, 61, 64, 67], 45, 52),   # A7    A3 C#4 E4 G4 | A2→E3
+    ([57, 61, 64, 67], 45, 52),
+    ([50, 53, 57, 60], 38, 45),   # Dm7   D3 F3 A3 C4  | D2→A2
+    ([50, 53, 57, 60], 38, 45),
+    ([55, 59, 62, 65], 43, 50),   # G7    G3 B3 D4 F4  | G2→D3
+    ([55, 59, 62, 65], 43, 50),
+
+    # --- Section 4: III7-VI7-II7-V7 (secondary dominants) ---
+    ([52, 56, 59, 62], 40, 47),   # E7    E3 G#3 B3 D4 | E2→B2
+    ([52, 56, 59, 62], 40, 47),
+    ([57, 61, 64, 67], 45, 52),   # A7    A3 C#4 E4 G4 | A2→E3
+    ([57, 61, 64, 67], 45, 52),
+    ([50, 54, 57, 60], 38, 45),   # D7    D3 F#3 A3 C4 | D2→A2
+    ([50, 54, 57, 60], 38, 45),
+    ([55, 59, 62, 65], 43, 50),   # G7    G3 B3 D4 F4  | G2→D3
+    ([55, 59, 62, 65], 43, 50),
+]
+
+
+def play_jazzy_bar(synth, bar_index: int, bar_start: float) -> None:
+    """
+    Block until all note events for one jazzy bar have fired.
+
+    Drum layout:
+      t=0.00 : kick + ride (+ ride bell on section start) + bass root
+      t=0.50 : ride offbeat (swing "and" of 1)
+      t=1.00 : chord + pedal hi-hat + snare + ride
+      t=1.50 : ride offbeat (swing "and" of 2)
+      t=1.85 : chord OFF + bass root OFF
+      t=2.00 : ride + bass fifth
+      t=2.50 : ride offbeat (swing "and" of 3)
+      t=3.00 : chord + pedal hi-hat + snare + ride
+      t=3.50 : ride offbeat (swing "and" of 4)
+      t=3.85 : chord OFF + bass fifth OFF
+    """
+    spb = 60.0 / JAZZY_BPM   # ≈ 0.968 s per beat
+
+    chord_notes, bass_root, bass_fifth = JAZZY_BARS[bar_index % 32]
+    section_start = (bar_index % 8 == 0)
+
+    # t=0 — kick + ride + bass root (ride bell accent on section starts)
+    sleep_until(bar_start)
+    synth.noteon(CH_DRUMS, DRUM_KICK, _vel(55 if section_start else 50))
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(52 if section_start else 46))
+    if section_start:
+        synth.noteon(CH_DRUMS, DRUM_RIDE_BELL, _vel(60))
+    synth.noteon(CH_1, bass_root, _vel(62))
+
+    # t=0.5 SPB — ride offbeat ("and" of beat 1)
+    sleep_until(bar_start + spb * 0.5)
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(32))
+
+    # t=1 SPB — chord + pedal hi-hat chick + snare + ride
+    sleep_until(bar_start + spb)
+    cv = _vel(30)
+    for n in chord_notes:
+        synth.noteon(CH_0, n, cv)
+    synth.noteon(CH_DRUMS, DRUM_PEDAL_HIHAT,  _vel(38))
+    synth.noteon(CH_DRUMS, DRUM_BRUSH_SNARE,  _vel(48))
+    synth.noteon(CH_DRUMS, DRUM_RIDE,         _vel(46))
+
+    # t=1.5 SPB — ride offbeat ("and" of beat 2)
+    sleep_until(bar_start + spb * 1.5)
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(32))
+
+    # t=1.85 SPB — release chord + bass root
+    sleep_until(bar_start + spb * 1.85)
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+    synth.noteoff(CH_1, bass_root)
+
+    # t=2 SPB — ride + bass fifth
+    sleep_until(bar_start + spb * 2.0)
+    synth.noteon(CH_DRUMS, DRUM_RIDE,  _vel(44))
+    synth.noteon(CH_1,     bass_fifth, _vel(58))
+
+    # t=2.5 SPB — ride offbeat ("and" of beat 3)
+    sleep_until(bar_start + spb * 2.5)
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(32))
+
+    # t=3 SPB — chord + pedal hi-hat chick + snare + ride
+    sleep_until(bar_start + spb * 3.0)
+    cv = _vel(28)
+    for n in chord_notes:
+        synth.noteon(CH_0, n, cv)
+    synth.noteon(CH_DRUMS, DRUM_PEDAL_HIHAT,  _vel(36))
+    synth.noteon(CH_DRUMS, DRUM_BRUSH_SNARE,  _vel(46))
+    synth.noteon(CH_DRUMS, DRUM_RIDE,         _vel(44))
+
+    # t=3.5 SPB — ride offbeat ("and" of beat 4)
+    sleep_until(bar_start + spb * 3.5)
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(32))
+
+    # t=3.85 SPB — release chord + bass fifth
+    sleep_until(bar_start + spb * 3.85)
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+    synth.noteoff(CH_1, bass_fifth)
+
+
+# ---------------------------------------------------------------------------
+# Cafe mode — 16-bar cycle  (Am → F → C → G,  4 bars per chord)
+#
+# Bass low-octave MIDI:  A1=33  F1=29  C2=36  G1=31
+# Bass root MIDI:        A2=45  F2=41  C3=48  G2=43
+# ---------------------------------------------------------------------------
+
+CAFE_CHORD_SEQ = [
+    # (chord_notes, bass_root, bass_low)   — chords raised to octave 4-5 for air
+    ([69, 72, 76], 45, 33),   # Am   A4 C5 E5  |  A2 → A1
+    ([65, 69, 72], 41, 29),   # F    F4 A4 C5  |  F2 → F1
+    ([72, 76, 79], 48, 36),   # C    C5 E5 G5  |  C3 → C2
+    ([67, 71, 74], 43, 31),   # G    G4 B4 D5  |  G2 → G1
+]
+
+# Track pad notes across bars (mutable container to avoid nonlocal in nested fn)
+_cafe_pad_notes: list = []
+
+
+def play_cafe_bar(synth, bar_index: int, bar_start: float) -> None:
+    """
+    Block until all note events for one cafe bar have fired.
+
+    Pad (CH_1) is sustained across 4 bars per chord:
+      - noteOn  at bar_in_chord == 0, t=0
+      - noteOff at bar_in_chord == 3, t=3.95 SPB (near bar end)
+
+    Beat layout per bar (straight 4/4):
+      t=0.00 SPB : piano stab ON + kick + hihat + bass_root ON (+ pad if chord onset)
+      t=0.60 SPB : piano stab OFF
+      t=0.95 SPB : bass_root OFF
+      t=1.00 SPB : hihat
+      t=2.00 SPB : hihat + bass_low ON
+      t=2.95 SPB : bass_low OFF
+      t=3.00 SPB : hihat
+      t=3.95 SPB : pad OFF (last bar of chord only)
+    """
+    global _cafe_pad_notes
+    spb = 60.0 / CAFE_BPM   # ≈ 0.811 s per beat
+
+    chord_idx   = (bar_index % 16) // 4
+    bar_in_chord = bar_index % 4
+    chord_notes, bass_root, bass_low = CAFE_CHORD_SEQ[chord_idx]
+
+    # t=0 — piano stab + kick + hihat + bass root (+ pad noteOn if chord onset)
+    sleep_until(bar_start)
+
+    if bar_in_chord == 0:
+        # Release previous pad notes if any
+        for n in _cafe_pad_notes:
+            synth.noteoff(CH_1, n)
+        # Start new pad
+        pv = _vel(42)
+        for n in chord_notes:
+            synth.noteon(CH_1, n, pv)
+        _cafe_pad_notes = list(chord_notes)
+
+    ep = _vel(58)
+    for n in chord_notes:
+        synth.noteon(CH_0, n, ep)
+    synth.noteon(CH_DRUMS, DRUM_KICK,         _vel(22))
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(22))
+    synth.noteon(CH_2,     bass_root,         _vel(38))
+
+    # t=0.6 — piano stab OFF
+    sleep_until(bar_start + spb * 0.60)
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+
+    # t=0.95 — bass root OFF
+    sleep_until(bar_start + spb * 0.95)
+    synth.noteoff(CH_2, bass_root)
+
+    # t=1 — hihat
+    sleep_until(bar_start + spb)
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(20))
+
+    # t=2 — hihat + bass low + beat-3 piano stab
+    sleep_until(bar_start + spb * 2.0)
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(20))
+    synth.noteon(CH_2,     bass_low,          _vel(35))
+    ep3 = _vel(44)
+    for n in chord_notes:
+        synth.noteon(CH_0, n, ep3)
+
+    # t=2.55 — beat-3 piano OFF
+    sleep_until(bar_start + spb * 2.55)
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+
+    # t=2.95 — bass low OFF
+    sleep_until(bar_start + spb * 2.95)
+    synth.noteoff(CH_2, bass_low)
+
+    # t=3 — hihat
+    sleep_until(bar_start + spb * 3.0)
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(18))
+
+    # t=3.95 — pad OFF (last bar of chord only)
+    if bar_in_chord == 3:
+        sleep_until(bar_start + spb * 3.95)
+        for n in _cafe_pad_notes:
+            synth.noteoff(CH_1, n)
+        _cafe_pad_notes = []
+
+
+# ---------------------------------------------------------------------------
+# One-shot bars — played once on Stop or AskUserQuestion events
+#
+# "stop"     — arpeggio UP on beat 2, DOWN on beat 4 (resolved, "I'm done")
+# "question" — arpeggio UP on beat 2, top note echoes on beat 4 (unresolved)
+#
+# Drums and bass unchanged in both so they sit in the groove.
+# ---------------------------------------------------------------------------
+
+def play_jazzy_oneshot(synth, bar_index: int, bar_start: float, variant: str = "stop") -> None:
+    spb = 60.0 / JAZZY_BPM
+    chord_notes, bass_root, bass_fifth = JAZZY_BARS[bar_index % 32]
+
+    # t=0 — kick + ride + bass root (no piano on beat 1)
+    sleep_until(bar_start)
+    synth.noteon(CH_DRUMS, DRUM_KICK, _vel(50))
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(46))
+    synth.noteon(CH_1, bass_root, _vel(60))
+
+    # t=0.5 — ride offbeat
+    sleep_until(bar_start + spb * 0.5)
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(30))
+
+    # t=1 — arpeggio UP: low→high, one note per ~100ms
+    sleep_until(bar_start + spb)
+    synth.noteon(CH_DRUMS, DRUM_BRUSH_SNARE, _vel(58))
+    synth.noteon(CH_DRUMS, DRUM_RIDE,        _vel(54))
+    for i, n in enumerate(chord_notes):
+        sleep_until(bar_start + spb + i * 0.10)
+        synth.noteon(CH_0, n, _vel(68 - i * 3))  # bold, slight taper as it rises
+
+    # t=1.5 — ride offbeat
+    sleep_until(bar_start + spb * 1.5)
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(30))
+
+    # t=1.85 — release arpeggio + bass root
+    sleep_until(bar_start + spb * 1.85)
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+    synth.noteoff(CH_1, bass_root)
+
+    # t=2 — ride + bass fifth
+    sleep_until(bar_start + spb * 2.0)
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(42))
+    synth.noteon(CH_1, bass_fifth, _vel(56))
+
+    # t=2.5 — ride offbeat
+    sleep_until(bar_start + spb * 2.5)
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(30))
+
+    # t=3 — resolved: arpeggio DOWN  /  question: top note echo (unresolved)
+    sleep_until(bar_start + spb * 3.0)
+    synth.noteon(CH_DRUMS, DRUM_BRUSH_SNARE, _vel(55))
+    synth.noteon(CH_DRUMS, DRUM_RIDE,        _vel(52))
+    if variant == "question":
+        # just the top note again, soft — leaves it hanging
+        synth.noteon(CH_0, chord_notes[-1], _vel(48))
+    else:
+        for i, n in enumerate(reversed(chord_notes)):
+            sleep_until(bar_start + spb * 3.0 + i * 0.10)
+            synth.noteon(CH_0, n, _vel(62 - i * 3))
+
+    # t=3.5 — ride offbeat
+    sleep_until(bar_start + spb * 3.5)
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(30))
+
+    # t=3.85 — release + bass fifth off
+    sleep_until(bar_start + spb * 3.85)
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+    synth.noteoff(CH_1, bass_fifth)
+
+
+def play_cafe_oneshot(synth, bar_index: int, bar_start: float, variant: str = "stop") -> None:
+    """
+    One-shot cafe bar: same drums/bass as normal, piano arpeggios instead of stab.
+    Pad left untouched — it sustains from whatever state it's already in.
+    """
+    spb = 60.0 / CAFE_BPM
+    chord_idx   = (bar_index % 16) // 4
+    chord_notes, bass_root, bass_low = CAFE_CHORD_SEQ[chord_idx]
+    # Play arpeggio one octave below pad so it cuts through instead of blending
+    arp_notes = [n - 12 for n in chord_notes]
+
+    # t=0 — kick + hihat + bass root; arpeggio UP in mid-range
+    sleep_until(bar_start)
+    synth.noteon(CH_DRUMS, DRUM_KICK,         _vel(22))
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(22))
+    synth.noteon(CH_2,     bass_root,         _vel(38))
+    for i, n in enumerate(arp_notes):
+        sleep_until(bar_start + i * 0.09)
+        synth.noteon(CH_0, n, _vel(78 - i * 5))
+
+    # t=0.6 — piano OFF
+    sleep_until(bar_start + spb * 0.60)
+    for n in arp_notes:
+        synth.noteoff(CH_0, n)
+
+    # t=0.95 — bass root OFF
+    sleep_until(bar_start + spb * 0.95)
+    synth.noteoff(CH_2, bass_root)
+
+    # t=1 — hihat
+    sleep_until(bar_start + spb)
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(20))
+
+    # t=2 — hihat + bass low
+    sleep_until(bar_start + spb * 2.0)
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(20))
+    synth.noteon(CH_2, bass_low, _vel(35))
+
+    # t=2.95 — bass low OFF
+    sleep_until(bar_start + spb * 2.95)
+    synth.noteoff(CH_2, bass_low)
+
+    # t=3 — hihat; question: top note echo / stop: arpeggio DOWN
+    sleep_until(bar_start + spb * 3.0)
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(18))
+    if variant == "question":
+        synth.noteon(CH_0, arp_notes[-1], _vel(72))
+    else:
+        for i, n in enumerate(reversed(arp_notes)):
+            sleep_until(bar_start + spb * 3.0 + i * 0.09)
+            synth.noteon(CH_0, n, _vel(70 - i * 5))
+
+    # t=3.85 — piano OFF
+    sleep_until(bar_start + spb * 3.85)
+    for n in arp_notes:
+        synth.noteoff(CH_0, n)
+
+
+# ---------------------------------------------------------------------------
+# Mode setup
+# ---------------------------------------------------------------------------
+
+def setup_jazzy(synth, sfid: int) -> None:
+    synth.program_select(CH_0,     sfid,   0, GM_ACOUSTIC_GRAND)
+    synth.program_select(CH_1,     sfid,   0, GM_ACOUSTIC_BASS)
+    synth.program_select(CH_DRUMS, sfid, 128, 0)
+
+
+def setup_cafe(synth, sfid: int) -> None:
+    synth.program_select(CH_0,     sfid,   0, GM_VIBRAPHONE)
+    synth.program_select(CH_1,     sfid,   0, GM_WARM_PAD)
+    synth.program_select(CH_2,     sfid,   0, GM_FINGER_BASS)
+    synth.program_select(CH_DRUMS, sfid, 128, 0)
+
+
+def all_notes_off(synth) -> None:
+    for ch in [CH_0, CH_1, CH_2, CH_DRUMS]:
+        for note in range(128):
+            synth.noteoff(ch, note)
+
+
+# ---------------------------------------------------------------------------
+# State helpers
+# ---------------------------------------------------------------------------
 
 def read_state() -> dict:
     try:
@@ -37,21 +503,10 @@ def read_state() -> dict:
         return {}
 
 
-def write_pid(pid: int) -> None:
-    state = read_state()
-    state["daemon_pid"] = pid
+def write_state_fields(**fields) -> None:
     try:
-        with open(STATE_FILE, "w") as f:
-            json.dump(state, f)
-    except Exception:
-        pass
-
-
-def update_mode(mode: str) -> None:
-    state = read_state()
-    state["mode"] = mode
-    state["updated_at"] = int(time.time())
-    try:
+        state = read_state()
+        state.update(fields)
         with open(STATE_FILE, "w") as f:
             json.dump(state, f)
     except Exception:
@@ -59,525 +514,107 @@ def update_mode(mode: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Musical constants
+# Fade out
 # ---------------------------------------------------------------------------
 
-# Note frequencies (Hz)
-NOTE_FREQ = {
-    "A2": 110.00, "B2": 123.47, "C3": 130.81, "D3": 146.83, "E3": 164.81,
-    "F3": 174.61, "G3": 196.00, "A3": 220.00, "B3": 246.94, "C4": 261.63,
-    "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00, "A4": 440.00,
-    "B4": 493.88, "C5": 523.25, "D5": 587.33, "E5": 659.25, "F5": 698.46,
-    "G5": 783.99, "A5": 880.00,
-}
-
-# Chord definitions: root + third + fifth (frequencies in Hz)
-CHORDS = {
-    "Am": [NOTE_FREQ["A3"], NOTE_FREQ["C4"], NOTE_FREQ["E4"]],
-    "F":  [NOTE_FREQ["F3"], NOTE_FREQ["A3"], NOTE_FREQ["C4"]],
-    "C":  [NOTE_FREQ["C4"], NOTE_FREQ["E4"], NOTE_FREQ["G4"]],
-    "G":  [NOTE_FREQ["G3"], NOTE_FREQ["B3"], NOTE_FREQ["D4"]],
-    "Em": [NOTE_FREQ["E3"], NOTE_FREQ["G3"], NOTE_FREQ["B3"]],
-    "D":  [NOTE_FREQ["D3"], NOTE_FREQ["F3"], NOTE_FREQ["A3"]],
-    "Dm": [NOTE_FREQ["D3"], NOTE_FREQ["F3"], NOTE_FREQ["A3"]],
-    "Bb": [NOTE_FREQ["A3"]*1.0595, NOTE_FREQ["D4"], NOTE_FREQ["F4"]],
-}
-
-# Bass note (root) for each chord
-BASS_NOTE = {
-    "Am": NOTE_FREQ["A2"],
-    "F":  NOTE_FREQ["F3"] / 2,
-    "C":  NOTE_FREQ["C3"],
-    "G":  NOTE_FREQ["G2"] if "G2" in NOTE_FREQ else NOTE_FREQ["G3"] / 2,
-    "Em": NOTE_FREQ["E3"] / 2,
-    "D":  NOTE_FREQ["D3"] / 2,
-    "Dm": NOTE_FREQ["D3"] / 2,
-    "Bb": NOTE_FREQ["A3"] * 1.0595 / 2,
-}
-# Fill in G2 manually
-BASS_NOTE["G"] = 98.00  # G2
-
-# Mode configurations
-MODES = {
-    "flow":    {"bpm": 72,  "chords": ["Am", "F",  "C",  "G"]},
-    "focus":   {"bpm": 84,  "chords": ["C",  "G",  "Am", "F"]},
-    "drive":   {"bpm": 90,  "chords": ["Em", "C",  "G",  "D"]},
-    "waiting": {"bpm": 60,  "chords": ["Dm", "Am", "Dm", "Am"]},
-    "success": {"bpm": 90,  "chords": ["C",  "G",  "Am", "F"]},
-    "error":   {"bpm": 66,  "chords": ["Am", "F",  "Dm", "Am"]},
-}
-
-# Drum patterns: 16 steps per bar (16th notes)
-# Each entry: (pattern, base_volume)
-DRUM_PATTERNS = {
-    "flow": {
-        "kick":  ([1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], 0.60),
-        "snare": ([0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0], 0.35),
-        "hihat": ([1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0], 0.15),
-    },
-    "focus": {
-        "kick":  ([1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0], 0.60),
-        "snare": ([0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0], 0.45),
-        "hihat": ([1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0], 0.15),
-    },
-    "drive": {
-        "kick":  ([1,0,1,0,0,0,1,0,1,0,1,0,0,0,1,0], 0.60),
-        "snare": ([0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0], 0.45),
-        "hihat": ([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], 0.15),
-    },
-    "waiting": {
-        "kick":  ([1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], 0.55),
-        "snare": ([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0], 0.00),
-        "hihat": ([1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], 0.10),
-    },
-    "success": {
-        "kick":  ([1,0,0,0,0,0,1,0,1,0,0,0,0,0,1,0], 0.65),
-        "snare": ([0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0], 0.50),
-        "hihat": ([1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0], 0.18),
-    },
-    "error": {
-        "kick":  ([1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0], 0.50),
-        "snare": ([0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0], 0.30),
-        "hihat": ([1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0], 0.10),
-    },
-}
-
-# 8th-note swing: positions (0-indexed) that get a slight push forward
-SWING_POSITIONS = {2, 6, 10, 14}
-SWING_OFFSET_S = 0.004  # +4ms
-
-# Melodic sequences: (note_name_or_None, duration_beats)
-# None = rest. 1 beat = 1 quarter note.
-MELODIES = {
-    "flow": [  # A minor pentatonic: A C D E G
-        ("A4", 0.5), ("C5", 0.25), ("D5", 0.25),  # bar 1
-        ("E5", 0.25), (None, 0.25), ("C5", 0.5),   # bar 2
-        (None, 0.5), ("A4", 0.5),                  # bar 3
-        ("E4", 1.0),                               # bar 4
-    ],
-    "focus": [  # C major pentatonic: C D E G A
-        ("E5", 0.25), ("G5", 0.25), ("A5", 0.5),   # bar 1
-        ("G5", 0.25), ("E5", 0.25), ("D5", 0.5),   # bar 2
-        ("C5", 0.25), ("E5", 0.25), ("G5", 0.25), ("A5", 0.25),  # bar 3
-        ("G5", 0.5), ("E5", 0.5),                  # bar 4
-    ],
-    "drive": [  # E minor pentatonic: E G A B D
-        ("B4", 0.125), ("D5", 0.125), ("E5", 0.25), ("B4", 0.5),  # bar 1
-        ("G4", 0.125), ("A4", 0.125), ("B4", 0.75),               # bar 2
-        ("E5", 0.125), ("D5", 0.125), ("B4", 0.25), ("A4", 0.25), ("G4", 0.25),  # bar 3
-        ("B4", 1.0),                                               # bar 4
-    ],
-    "waiting": [  # D minor pentatonic: D F A
-        ("F5", 0.5), (None, 0.5),   # bar 1
-        (None, 1.0),                # bar 2
-        ("A4", 0.5), (None, 0.5),   # bar 3
-        ("D5", 1.5),                # bar 4 (extends into silence)
-    ],
-    "success": [  # Bright major: C D E G A
-        ("C5", 0.25), ("E5", 0.25), ("G5", 0.25), ("A5", 0.25),
-        ("G5", 0.5), ("E5", 0.5),
-        ("C5", 0.25), ("G5", 0.25), ("A5", 0.5),
-        ("G5", 1.0),
-    ],
-    "error": [  # Minor, slow walk
-        ("A4", 0.5), (None, 0.5),
-        ("G4", 0.5), (None, 0.5),
-        ("F4", 0.5), (None, 0.5),
-        ("E4", 1.0),
-    ],
-}
+def fade_out(synth, duration: float = 0.5, steps: int = 20) -> None:
+    initial = 0.6
+    for i in range(steps):
+        try:
+            synth.setting("synth.gain", max(0.0, initial * (1.0 - (i + 1) / steps)))
+        except Exception:
+            pass
+        time.sleep(duration / steps)
+    all_notes_off(synth)
 
 
 # ---------------------------------------------------------------------------
-# Synthesis helpers
-# ---------------------------------------------------------------------------
-
-def mix(a: list, b: list) -> list:
-    """Mix two sample buffers (zero-pad shorter)."""
-    n = max(len(a), len(b))
-    result = [0.0] * n
-    for i in range(len(a)):
-        result[i] += a[i]
-    for i in range(len(b)):
-        result[i] += b[i]
-    return result
-
-
-def scale(samples: list, vol: float) -> list:
-    return [s * vol for s in samples]
-
-
-def silence(n_samples: int) -> list:
-    return [0.0] * n_samples
-
-
-def apply_reverb(samples: list) -> list:
-    """3-tap delay reverb."""
-    taps = [
-        (int(0.030 * SAMPLE_RATE), 0.35),
-        (int(0.070 * SAMPLE_RATE), 0.20),
-        (int(0.120 * SAMPLE_RATE), 0.10),
-    ]
-    result = list(samples)
-    for delay, level in taps:
-        for i in range(delay, len(result)):
-            result[i] += samples[i - delay] * level
-    return result
-
-
-def normalize(samples: list, peak: float = 0.85) -> list:
-    """Normalize to avoid clipping."""
-    mx = max(abs(s) for s in samples) if samples else 1.0
-    if mx < 1e-9:
-        return samples
-    factor = peak / mx
-    return [s * factor for s in samples]
-
-
-def fade_in(samples: list, duration: float = 0.30) -> list:
-    """Apply a linear fade-in to avoid hard entry after a mode switch."""
-    n = min(int(SAMPLE_RATE * duration), len(samples))
-    result = list(samples)
-    for i in range(n):
-        result[i] *= i / n
-    return result
-
-
-def write_wav(samples: list, path: str) -> None:
-    clipped = [max(-32767, min(32767, int(s * 32767))) for s in samples]
-    with wave.open(path, "w") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(SAMPLE_RATE)
-        wf.writeframes(struct.pack(f"<{len(clipped)}h", *clipped))
-
-
-# ---------------------------------------------------------------------------
-# Instrument synthesis
-# ---------------------------------------------------------------------------
-
-def synth_kick(duration: float = 0.15) -> list:
-    """Sine sweep 80→40 Hz with exponential decay."""
-    n = int(SAMPLE_RATE * duration)
-    samples = []
-    phase = 0.0
-    for i in range(n):
-        t = i / SAMPLE_RATE
-        env = math.exp(-20 * t / duration)
-        freq = 80 * math.exp(-math.log(2) * t / duration)  # 80→40 Hz
-        phase += 2 * math.pi * freq / SAMPLE_RATE
-        samples.append(env * math.sin(phase))
-    return samples
-
-
-def synth_snare(duration: float = 0.12) -> list:
-    """White noise + 200 Hz sine with fast decay."""
-    n = int(SAMPLE_RATE * duration)
-    samples = []
-    for i in range(n):
-        t = i / SAMPLE_RATE
-        env = math.exp(-30 * t / duration)
-        noise = random.uniform(-1, 1)
-        tone = math.sin(2 * math.pi * 200 * t)
-        samples.append(env * (0.7 * noise + 0.3 * tone))
-    return samples
-
-
-def synth_hihat(duration: float = 0.03) -> list:
-    """White noise burst with exponential decay."""
-    n = int(SAMPLE_RATE * duration)
-    return [math.exp(-60 * i / n) * random.uniform(-1, 1) for i in range(n)]
-
-
-def synth_bass(freq: float, duration: float) -> list:
-    """Sine + octave harmonic, slow release."""
-    n = int(SAMPLE_RATE * duration)
-    attack = int(0.01 * SAMPLE_RATE)
-    release = int(min(0.3 * SAMPLE_RATE, n * 0.4))
-    samples = []
-    for i in range(n):
-        t = i / SAMPLE_RATE
-        if i < attack:
-            env = i / attack
-        elif i > n - release:
-            env = (n - i) / release
-        else:
-            env = 1.0
-        wave_val = math.sin(2 * math.pi * freq * t) + 0.5 * math.sin(2 * math.pi * freq * 2 * t)
-        samples.append(env * wave_val / 1.5)
-    return samples
-
-
-def synth_piano_note(freq: float, duration: float) -> list:
-    """Rhodes-style electric piano: harmonic partials with punchy attack + sustain decay."""
-    n = int(SAMPLE_RATE * duration)
-    # Partials: strong fundamental, bright 2nd, tapering higher harmonics
-    partials = [(1, 1.0), (2, 0.60), (3, 0.25), (4, 0.10), (5, 0.05)]
-    total_amp = sum(a for _, a in partials)
-    attack_n = max(1, int(0.001 * SAMPLE_RATE))  # 1ms punchy attack
-    tau_fast = 0.04                               # 40ms initial bark
-    tau_slow = max(duration * 0.5, 0.20)          # sustain tail
-    samples = []
-    for i in range(n):
-        t = i / SAMPLE_RATE
-        if i < attack_n:
-            env = i / attack_n
-        else:
-            t2 = t - attack_n / SAMPLE_RATE
-            env = 0.5 * math.exp(-t2 / tau_fast) + 0.5 * math.exp(-t2 / tau_slow)
-        wave_val = sum(amp * math.sin(2 * math.pi * freq * k * t) for k, amp in partials)
-        samples.append(env * wave_val / total_amp)
-    return samples
-
-
-def synth_piano_chord(freqs: list, duration: float) -> list:
-    """Funky chord stab: staggered piano-style voicing, punchy and short."""
-    n = int(SAMPLE_RATE * duration)
-    buffer = [0.0] * n
-    stagger = int(0.012 * SAMPLE_RATE)  # 12ms stagger between chord notes
-    stab_dur = min(duration, 0.50)      # chord stab caps at 0.5s regardless of bar length
-    for idx, freq in enumerate(freqs):
-        note = synth_piano_note(freq, stab_dur)
-        onset = idx * stagger
-        for i, s in enumerate(note):
-            pos = onset + i
-            if pos < n:
-                buffer[pos] += s / len(freqs)
-    return buffer
-
-
-# ---------------------------------------------------------------------------
-# Bar generation
-# ---------------------------------------------------------------------------
-
-def seconds_per_beat(bpm: float) -> float:
-    return 60.0 / bpm
-
-
-def generate_bar(mode: str, bar_index: int) -> list:
-    """Generate one bar of audio samples."""
-    cfg = MODES[mode]
-    bpm = cfg["bpm"]
-    chords = cfg["chords"]
-    chord_name = chords[bar_index % len(chords)]
-
-    spb = seconds_per_beat(bpm)            # seconds per beat (quarter note)
-    step_dur = spb / 4                     # 16th note duration
-    bar_dur = spb * 4                      # total bar duration
-    bar_samples = int(SAMPLE_RATE * bar_dur)
-
-    buffer = silence(bar_samples)
-
-    # --- Drums ---
-    pattern_key = mode if mode in DRUM_PATTERNS else "flow"
-    drum_cfg = DRUM_PATTERNS[pattern_key]
-
-    for drum_type, (pattern, base_vol) in drum_cfg.items():
-        if base_vol == 0.0:
-            continue
-        for step, hit in enumerate(pattern):
-            if not hit:
-                continue
-
-            # Timing jitter ±2ms (tight, professional)
-            jitter = random.uniform(-0.002, 0.002)
-            # Swing offset
-            swing = SWING_OFFSET_S if step in SWING_POSITIONS else 0.0
-            # Velocity variation ±5% (consistent dynamics)
-            vel = base_vol * random.uniform(0.95, 1.05)
-
-            onset = step * step_dur + jitter + swing
-            onset_sample = max(0, int(onset * SAMPLE_RATE))
-
-            if drum_type == "kick":
-                hit_samples = scale(synth_kick(), vel)
-            elif drum_type == "snare":
-                hit_samples = scale(synth_snare(), vel)
-            else:  # hihat
-                hit_samples = scale(synth_hihat(), vel)
-
-            # Mix into buffer
-            end = min(len(buffer), onset_sample + len(hit_samples))
-            for i, s in enumerate(hit_samples[:end - onset_sample]):
-                buffer[onset_sample + i] += s
-
-    # --- Bass ---
-    bass_freq = BASS_NOTE.get(chord_name, 110.0)
-    bass = scale(synth_bass(bass_freq, bar_dur * 0.9), 0.35)
-    buffer = mix(buffer, bass)
-
-    # --- Chord stab ---
-    chord_freqs = CHORDS.get(chord_name, [261.63, 329.63, 392.00])
-    pad = scale(synth_piano_chord(chord_freqs, bar_dur), 0.18)
-    buffer = mix(buffer, pad)
-
-    # --- Melody (4-bar loop) ---
-    melody_key = mode if mode in MELODIES else "flow"
-    melody_sequence = MELODIES[melody_key]
-    bars_per_loop = 4
-    melody_bar = bar_index % bars_per_loop
-
-    # Calculate which notes fall in this bar
-    beats_per_bar = 4.0
-    bar_start_beat = melody_bar * beats_per_bar
-    bar_end_beat = bar_start_beat + beats_per_bar
-
-    cursor = 0.0
-    for note_name, note_beats in melody_sequence:
-        note_start = cursor
-        note_end = cursor + note_beats
-        cursor = note_end
-
-        if note_end <= bar_start_beat:
-            continue
-        if note_start >= bar_end_beat:
-            break
-
-        if note_name is None:
-            continue
-
-        freq = NOTE_FREQ.get(note_name)
-        if freq is None:
-            continue
-
-        # Clip to this bar
-        local_start = max(0.0, note_start - bar_start_beat)
-        local_end = min(beats_per_bar, note_end - bar_start_beat)
-        local_dur = (local_end - local_start) * spb
-
-        if local_dur < 0.01:
-            continue
-
-        mel = scale(synth_piano_note(freq, local_dur), 0.25)
-        onset_sample = int(local_start * spb * SAMPLE_RATE)
-        end = min(len(buffer), onset_sample + len(mel))
-        for i, s in enumerate(mel[:end - onset_sample]):
-            buffer[onset_sample + i] += s
-
-    # --- Reverb + normalize ---
-    buffer = apply_reverb(buffer)
-    buffer = normalize(buffer, peak=0.50)
-
-    return buffer
-
-
-def generate_fade_out(duration: float = 0.50) -> list:
-    """Soft chord that fades to silence — played on vibes off to avoid a hard cut."""
-    n = int(SAMPLE_RATE * duration)
-    freqs = [220.0, 330.0, 440.0]  # A minor chord
-    return [
-        0.10 * sum(math.sin(2 * math.pi * f * i / SAMPLE_RATE) for f in freqs)
-        * (1.0 - i / n)
-        for i in range(n)
-    ]
-
-
-# ---------------------------------------------------------------------------
-# Daemon main loop
+# Main
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    pid = os.getpid()
-    write_pid(pid)
+    state = read_state()
+    if not state.get("enabled", False):
+        return
+
+    # --- Audio ---
+    synth = fluidsynth.Synth(gain=0.6)
+    synth.start(driver="coreaudio")
+
+    sfid = -1
+    for p in SF2_SEARCH:
+        if not os.path.exists(p):
+            continue
+        sfid = synth.sfload(p)
+        if sfid != -1:
+            break
+
+    if sfid == -1:
+        print("No SoundFont found. Run plugins/vibes/bin/install.sh", file=sys.stderr)
+        synth.delete()
+        sys.exit(1)
+
+    # --- Initial mode ---
+    current_mode = state.get("mode", "jazzy")
+    if current_mode not in ("jazzy", "cafe"):
+        current_mode = "jazzy"
+
+    if current_mode == "jazzy":
+        setup_jazzy(synth, sfid)
+    else:
+        setup_cafe(synth, sfid)
+
+    write_state_fields(daemon_pid=os.getpid())
 
     bar_index = 0
-    transient_bars = 0   # bars remaining in a transient mode (success/error)
-    base_mode = "flow"   # mode to return to after transient
-    TRANSIENT_MODES = {"success", "error"}
-    TRANSIENT_DURATION = 8  # bars
-    prev_play_mode = None  # track previous bar's mode for fade-in on transitions
-
-    tmp_path = None
 
     try:
         while True:
-            # Read state
             state = read_state()
             if not state.get("enabled", False):
                 break
 
-            current_mode = state.get("mode", "flow")
+            new_mode = state.get("mode", "jazzy")
+            if new_mode not in ("jazzy", "cafe"):
+                new_mode = "jazzy"
 
-            # Handle transient mode logic
-            if current_mode in TRANSIENT_MODES:
-                if transient_bars == 0:
-                    base_mode = base_mode  # keep current base
-                    transient_bars = TRANSIENT_DURATION
+            # Mode transition — silence, reconfigure, reset bar counter
+            if new_mode != current_mode:
+                all_notes_off(synth)
+                current_mode = new_mode
+                if current_mode == "jazzy":
+                    setup_jazzy(synth, sfid)
+                else:
+                    setup_cafe(synth, sfid)
+                bar_index = 0
+
+            one_shot = state.get("one_shot", False)
+            if one_shot:
+                write_state_fields(one_shot=False)
+
+            bpm     = JAZZY_BPM if current_mode == "jazzy" else CAFE_BPM
+            bar_dur = 4.0 * 60.0 / bpm
+            bar_start = time.perf_counter()
+
+            variant = one_shot if isinstance(one_shot, str) else "stop"
+            if one_shot and current_mode == "jazzy":
+                play_jazzy_oneshot(synth, bar_index, bar_start, variant)
+            elif one_shot and current_mode == "cafe":
+                play_cafe_oneshot(synth, bar_index, bar_start, variant)
+            elif current_mode == "jazzy":
+                play_jazzy_bar(synth, bar_index, bar_start)
             else:
-                base_mode = current_mode
-                transient_bars = 0
+                play_cafe_bar(synth, bar_index, bar_start)
 
-            if transient_bars > 0:
-                play_mode = current_mode
-                transient_bars -= 1
-                if transient_bars == 0:
-                    update_mode(base_mode)
-            else:
-                play_mode = current_mode
-
-            # Generate bar
-            samples = generate_bar(play_mode, bar_index)
+            # Sleep to exact bar boundary
+            sleep_until(bar_start + bar_dur - 0.002)
             bar_index += 1
-
-            # Fade in on startup and mode transitions so music never blasts in hard
-            if prev_play_mode is None or play_mode != prev_play_mode:
-                samples = fade_in(samples)
-            prev_play_mode = play_mode
-
-            # Write to temp WAV
-            fd, tmp_path = tempfile.mkstemp(suffix=".wav")
-            os.close(fd)
-            write_wav(samples, tmp_path)
-
-            # Start afplay
-            proc = subprocess.Popen(
-                ["afplay", tmp_path],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-
-            # Poll while playing — let current bar finish on mode change (no hard cut)
-            while proc.poll() is None:
-                time.sleep(0.1)
-                new_state = read_state()
-                if not new_state.get("enabled", False):
-                    proc.terminate()
-                    proc.wait()
-                    # Play a short fade-out chord so the stop isn't a hard cut
-                    fd2, fade_path = tempfile.mkstemp(suffix=".wav")
-                    os.close(fd2)
-                    write_wav(generate_fade_out(), fade_path)
-                    fade_proc = subprocess.Popen(
-                        ["afplay", fade_path],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                    fade_proc.wait()
-                    try:
-                        os.unlink(fade_path)
-                    except OSError:
-                        pass
-                    break
-
-            # Clean up temp file
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            tmp_path = None
-
-            # Check if we should exit (disabled during polling)
-            if not read_state().get("enabled", False):
-                break
 
     except KeyboardInterrupt:
         pass
     finally:
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
+        fade_out(synth)
+        synth.delete()
 
 
 if __name__ == "__main__":

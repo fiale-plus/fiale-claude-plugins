@@ -1,7 +1,7 @@
 ---
 name: vibes
-description: Toggle continuous rhythmic background music that adapts to your work context
-argument-hint: "[on|off]"
+description: Start/stop opinionated background music — jazzy dinner jazz or Balearic cafe chill
+argument-hint: "[jazzy|cafe|off]"
 ---
 
 # Vibes
