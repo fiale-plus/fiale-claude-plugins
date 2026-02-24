@@ -7,8 +7,8 @@ No sequencer API (pyfluidsynth 1.3.4 sequencer doesn't fire events on macOS).
 Single-threaded bar loop — state checked between bars.
 
 Modes:
-  jazzy  — 62 BPM dinner jazz   (32-bar AABA cycle through 4 classic progressions)
-  cafe   — 74 BPM Balearic chill (Am  → F  → C  → G,  16-bar cycle)
+  jazzy  — 63 BPM Chet Baker cool jazz  (16-bar Autumn Leaves cycle, Bb major)
+  cafe   — 72 BPM Jobim minor bossa nova (16-bar Corcovado cycle, A minor)
 """
 
 import json
@@ -42,7 +42,7 @@ SF2_SEARCH = [
 # Channels and GM programs
 #
 #   Jazzy: CH_0 = Acoustic Grand Piano  CH_1 = Acoustic Bass   CH_DRUMS
-#   Cafe:  CH_0 = Electric Piano 1      CH_1 = Choir Pad       CH_2 = Finger Bass  CH_DRUMS
+#   Cafe:  CH_0 = Acoustic Grand Piano  CH_1 = Acoustic Bass   CH_DRUMS
 # ---------------------------------------------------------------------------
 
 CH_0     = 0
@@ -64,13 +64,14 @@ DRUM_CLOSED_HIHAT = 42   # Closed Hi-Hat
 DRUM_PEDAL_HIHAT  = 44   # Pedal Hi-Hat ("chick" on 2 & 4)
 DRUM_RIDE         = 51   # Ride Cymbal 1
 DRUM_RIDE_BELL    = 53   # Ride Bell (brighter, section accent)
+DRUM_SIDE_STICK   = 37   # Side Stick — bossa "toc" on beat 2
 
 # ---------------------------------------------------------------------------
 # Timing helpers
 # ---------------------------------------------------------------------------
 
-JAZZY_BPM = 62
-CAFE_BPM  = 74
+JAZZY_BPM = 63
+CAFE_BPM  = 72
 
 
 def sleep_until(t: float) -> None:
@@ -90,63 +91,50 @@ def _vel(base: int, spread: float = 0.12) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Jazzy mode — 32-bar cycle, 4 classic 8-bar sections (2 bars per chord)
+# Jazzy mode — 16-bar cycle, 4 sections × 4 bars (Chet Baker / Autumn Leaves)
 #
-# MIDI note reference (C4=60):
-#   Bass octave : C2=36 D2=38 E2=40 F2=41 G2=43 A2=45 B2=47
-#   3rd octave  : C3=48 D3=50 E3=52 F3=53 G3=55 A3=57 B3=59
-#   4th octave  : C4=60 C#4=61 D4=62 F4=65 G4=67 A4=69 B4=71
-#                 E3=52 F#3=54 G#3=56
+# Key: Bb major — Bb2=46  C3=48  D3=50  Eb3=51  F2=41  G2=43  A2=45
 #
-# Sections:
-#   Bars  1-8  : ii-V-I-vi         Dm7 → G7 → Cmaj7 → Am7
-#   Bars  9-16 : I-VI-ii-V         Cmaj7 → A7 → Dm7 → G7
-#   Bars 17-24 : iii-VI-ii-V       Em7 → A7 → Dm7 → G7
-#   Bars 25-32 : III7-VI7-II7-V7   E7 → A7 → D7 → G7  (secondary dominants)
+# Chord voicings in 3rd-4th octave range (intimate, not booming):
+#   Cm7    = [60,63,67,70]   C4 Eb4 G4  Bb4
+#   F7     = [53,57,60,63]   F3 A3  C4  Eb4
+#   Bbmaj7 = [58,62,65,69]   Bb3 D4 F4  A4
+#   Ebmaj7 = [63,67,70,74]   Eb4 G4 Bb4 D5
+#   Am7b5  = [57,60,63,67]   A3  C4 Eb4 G4
+#   D7     = [62,66,69,72]   D4  F#4 A4 C5
+#   Gm7    = [55,58,62,65]   G3  Bb3 D4 F4
+#   G7     = [55,59,62,65]   G3  B3  D4 F4
+#   Ebm7   = [63,66,70,73]   Eb4 Gb4 Bb4 Db5  ← borrowed minor iv colour
+#
+# Walking bass: root on beat 1, fifth (or 3rd) as passing tone on beat 3.
 # ---------------------------------------------------------------------------
 
 JAZZY_BARS = [
     # (chord_notes, bass_root, bass_fifth)
 
-    # --- Section 1: ii-V-I-vi in C ---
-    ([50, 53, 57, 60], 38, 45),   # Dm7   D3 F3 A3 C4  | D2→A2
-    ([50, 53, 57, 60], 38, 45),
-    ([55, 59, 62, 65], 43, 50),   # G7    G3 B3 D4 F4  | G2→D3
-    ([55, 59, 62, 65], 43, 50),
-    ([60, 64, 67, 71], 48, 55),   # Cmaj7 C4 E4 G4 B4  | C3→G3
-    ([60, 64, 67, 71], 48, 55),
-    ([57, 60, 64, 67], 45, 52),   # Am7   A3 C4 E4 G4  | A2→E3
-    ([57, 60, 64, 67], 45, 52),
+    # --- Section A: Autumn Leaves opening — ii-V-I-IV in Bb ---
+    ([60, 63, 67, 70], 48, 55),   # Cm7    C4 Eb4 G4 Bb4  | C3→G3
+    ([53, 57, 60, 63], 41, 48),   # F7     F3 A3  C4 Eb4  | F2→C3
+    ([58, 62, 65, 69], 46, 53),   # Bbmaj7 Bb3 D4 F4 A4   | Bb2→F3
+    ([63, 67, 70, 74], 51, 58),   # Ebmaj7 Eb4 G4 Bb4 D5  | Eb3→Bb3
 
-    # --- Section 2: I-VI-ii-V turnaround ---
-    ([60, 64, 67, 71], 48, 55),   # Cmaj7 C4 E4 G4 B4  | C3→G3
-    ([60, 64, 67, 71], 48, 55),
-    ([57, 61, 64, 67], 45, 52),   # A7    A3 C#4 E4 G4 | A2→E3
-    ([57, 61, 64, 67], 45, 52),
-    ([50, 53, 57, 60], 38, 45),   # Dm7   D3 F3 A3 C4  | D2→A2
-    ([50, 53, 57, 60], 38, 45),
-    ([55, 59, 62, 65], 43, 50),   # G7    G3 B3 D4 F4  | G2→D3
-    ([55, 59, 62, 65], 43, 50),
+    # --- Section B: Minor ii-V-I (borrowed) ---
+    ([57, 60, 63, 67], 45, 51),   # Am7b5  A3 C4 Eb4 G4   | A2→Eb3
+    ([62, 66, 69, 72], 50, 57),   # D7     D4 F#4 A4 C5   | D3→A3
+    ([55, 58, 62, 65], 43, 50),   # Gm7    G3 Bb3 D4 F4   | G2→D3
+    ([55, 58, 62, 65], 43, 50),   # Gm7    G3 Bb3 D4 F4   | G2→D3 (held)
 
-    # --- Section 3: iii-VI-ii-V ---
-    ([52, 55, 59, 62], 40, 47),   # Em7   E3 G3 B3 D4  | E2→B2
-    ([52, 55, 59, 62], 40, 47),
-    ([57, 61, 64, 67], 45, 52),   # A7    A3 C#4 E4 G4 | A2→E3
-    ([57, 61, 64, 67], 45, 52),
-    ([50, 53, 57, 60], 38, 45),   # Dm7   D3 F3 A3 C4  | D2→A2
-    ([50, 53, 57, 60], 38, 45),
-    ([55, 59, 62, 65], 43, 50),   # G7    G3 B3 D4 F4  | G2→D3
-    ([55, 59, 62, 65], 43, 50),
+    # --- Section C: I-VI-ii-V turnaround ---
+    ([58, 62, 65, 69], 46, 53),   # Bbmaj7 Bb3 D4 F4 A4   | Bb2→F3
+    ([55, 59, 62, 65], 43, 50),   # G7     G3 B3  D4 F4   | G2→D3
+    ([60, 63, 67, 70], 48, 55),   # Cm7    C4 Eb4 G4 Bb4  | C3→G3
+    ([53, 57, 60, 63], 41, 48),   # F7     F3 A3  C4 Eb4  | F2→C3
 
-    # --- Section 4: III7-VI7-II7-V7 (secondary dominants) ---
-    ([52, 56, 59, 62], 40, 47),   # E7    E3 G#3 B3 D4 | E2→B2
-    ([52, 56, 59, 62], 40, 47),
-    ([57, 61, 64, 67], 45, 52),   # A7    A3 C#4 E4 G4 | A2→E3
-    ([57, 61, 64, 67], 45, 52),
-    ([50, 54, 57, 60], 38, 45),   # D7    D3 F#3 A3 C4 | D2→A2
-    ([50, 54, 57, 60], 38, 45),
-    ([55, 59, 62, 65], 43, 50),   # G7    G3 B3 D4 F4  | G2→D3
-    ([55, 59, 62, 65], 43, 50),
+    # --- Section D: Chromatic landing (borrowed minor iv) ---
+    ([58, 62, 65, 69], 46, 53),   # Bbmaj7 Bb3 D4 F4 A4   | Bb2→F3
+    ([63, 67, 70, 74], 51, 58),   # Ebmaj7 Eb4 G4 Bb4 D5  | Eb3→Bb3
+    ([63, 66, 70, 73], 51, 58),   # Ebm7   Eb4 Gb4 Bb4 Db5| Eb3→Bb3 ← chromatic colour
+    ([58, 62, 65, 69], 46, 53),   # Bbmaj7 Bb3 D4 F4 A4   | Bb2→F3
 ]
 
 
@@ -154,7 +142,7 @@ def play_jazzy_bar(synth, bar_index: int, bar_start: float) -> None:
     """
     Block until all note events for one jazzy bar have fired.
 
-    Drum layout:
+    Drum layout (Chet Baker brush-kit swing):
       t=0.00 : kick + ride (+ ride bell on section start) + bass root
       t=0.50 : ride offbeat (swing "and" of 1)
       t=1.00 : chord + pedal hi-hat + snare + ride
@@ -165,36 +153,38 @@ def play_jazzy_bar(synth, bar_index: int, bar_start: float) -> None:
       t=3.00 : chord + pedal hi-hat + snare + ride
       t=3.50 : ride offbeat (swing "and" of 4)
       t=3.85 : chord OFF + bass fifth OFF
-    """
-    spb = 60.0 / JAZZY_BPM   # ≈ 0.968 s per beat
 
-    chord_notes, bass_root, bass_fifth = JAZZY_BARS[bar_index % 32]
-    section_start = (bar_index % 8 == 0)
+    Piano vel 22–30 (barely-there Chet Baker style).
+    """
+    spb = 60.0 / JAZZY_BPM   # ≈ 0.952 s per beat
+
+    chord_notes, bass_root, bass_fifth = JAZZY_BARS[bar_index % 16]
+    section_start = (bar_index % 4 == 0)
 
     # t=0 — kick + ride + bass root (ride bell accent on section starts)
     sleep_until(bar_start)
-    synth.noteon(CH_DRUMS, DRUM_KICK, _vel(55 if section_start else 50))
-    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(52 if section_start else 46))
+    synth.noteon(CH_DRUMS, DRUM_KICK, _vel(40 if section_start else 35))
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(40 if section_start else 34))
     if section_start:
-        synth.noteon(CH_DRUMS, DRUM_RIDE_BELL, _vel(60))
-    synth.noteon(CH_1, bass_root, _vel(62))
+        synth.noteon(CH_DRUMS, DRUM_RIDE_BELL, _vel(44))
+    synth.noteon(CH_1, bass_root, _vel(57))
 
     # t=0.5 SPB — ride offbeat ("and" of beat 1)
     sleep_until(bar_start + spb * 0.5)
-    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(32))
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(22))
 
     # t=1 SPB — chord + pedal hi-hat chick + snare + ride
     sleep_until(bar_start + spb)
-    cv = _vel(30)
+    cv = _vel(26)
     for n in chord_notes:
         synth.noteon(CH_0, n, cv)
-    synth.noteon(CH_DRUMS, DRUM_PEDAL_HIHAT,  _vel(38))
-    synth.noteon(CH_DRUMS, DRUM_BRUSH_SNARE,  _vel(48))
-    synth.noteon(CH_DRUMS, DRUM_RIDE,         _vel(46))
+    synth.noteon(CH_DRUMS, DRUM_PEDAL_HIHAT,  _vel(28))
+    synth.noteon(CH_DRUMS, DRUM_BRUSH_SNARE,  _vel(36))
+    synth.noteon(CH_DRUMS, DRUM_RIDE,         _vel(34))
 
     # t=1.5 SPB — ride offbeat ("and" of beat 2)
     sleep_until(bar_start + spb * 1.5)
-    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(32))
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(22))
 
     # t=1.85 SPB — release chord + bass root
     sleep_until(bar_start + spb * 1.85)
@@ -204,25 +194,25 @@ def play_jazzy_bar(synth, bar_index: int, bar_start: float) -> None:
 
     # t=2 SPB — ride + bass fifth
     sleep_until(bar_start + spb * 2.0)
-    synth.noteon(CH_DRUMS, DRUM_RIDE,  _vel(44))
-    synth.noteon(CH_1,     bass_fifth, _vel(58))
+    synth.noteon(CH_DRUMS, DRUM_RIDE,  _vel(32))
+    synth.noteon(CH_1,     bass_fifth, _vel(52))
 
     # t=2.5 SPB — ride offbeat ("and" of beat 3)
     sleep_until(bar_start + spb * 2.5)
-    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(32))
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(22))
 
     # t=3 SPB — chord + pedal hi-hat chick + snare + ride
     sleep_until(bar_start + spb * 3.0)
-    cv = _vel(28)
+    cv = _vel(24)
     for n in chord_notes:
         synth.noteon(CH_0, n, cv)
-    synth.noteon(CH_DRUMS, DRUM_PEDAL_HIHAT,  _vel(36))
-    synth.noteon(CH_DRUMS, DRUM_BRUSH_SNARE,  _vel(46))
-    synth.noteon(CH_DRUMS, DRUM_RIDE,         _vel(44))
+    synth.noteon(CH_DRUMS, DRUM_PEDAL_HIHAT,  _vel(26))
+    synth.noteon(CH_DRUMS, DRUM_BRUSH_SNARE,  _vel(34))
+    synth.noteon(CH_DRUMS, DRUM_RIDE,         _vel(32))
 
     # t=3.5 SPB — ride offbeat ("and" of beat 4)
     sleep_until(bar_start + spb * 3.5)
-    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(32))
+    synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(22))
 
     # t=3.85 SPB — release chord + bass fifth
     sleep_until(bar_start + spb * 3.85)
@@ -232,109 +222,148 @@ def play_jazzy_bar(synth, bar_index: int, bar_start: float) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Cafe mode — 16-bar cycle  (Am → F → C → G,  4 bars per chord)
+# Cafe mode — 16-bar cycle, 4 sections × 4 bars (Jobim / Corcovado)
 #
-# Bass low-octave MIDI:  A1=33  F1=29  C2=36  G1=31
-# Bass root MIDI:        A2=45  F2=41  C3=48  G2=43
+# Key: A minor — A2=45  B2=47  D2=38  E2=40  F2=41  G2=43  F#2=42
+#
+# Chord voicings:
+#   Am7    = [57,60,64,67]  A3  C4  E4  G4
+#   D7     = [62,66,69,72]  D4  F#4 A4  C5
+#   Gmaj7  = [55,59,62,66]  G3  B3  D4  F#4
+#   Cmaj7  = [60,64,67,71]  C4  E4  G4  B4
+#   F#m7b5 = [54,57,60,64]  F#3 A3  C4  E4
+#   B7     = [59,63,66,69]  B3  D#4 F#4 A4
+#   Em7    = [52,55,59,62]  E3  G3  B3  D4
+#   E7     = [52,56,59,62]  E3  G#3 B3  D4
+#   Fmaj7  = [53,57,60,64]  F3  A3  C4  E4
+#   Dm7    = [50,53,57,60]  D3  F3  A3  C4
+#   Bm7b5  = [47,50,53,57]  B2  D3  F3  A3
+#
+# Bass: root on beat 1, walking/passing note on beat 3 (t=2.00 SPB).
 # ---------------------------------------------------------------------------
 
 CAFE_CHORD_SEQ = [
-    # (chord_notes, bass_root, bass_low)   — chords raised to octave 4-5 for air
-    ([69, 72, 76], 45, 33),   # Am   A4 C5 E5  |  A2 → A1
-    ([65, 69, 72], 41, 29),   # F    F4 A4 C5  |  F2 → F1
-    ([72, 76, 79], 48, 36),   # C    C5 E5 G5  |  C3 → C2
-    ([67, 71, 74], 43, 31),   # G    G4 B4 D5  |  G2 → G1
-]
+    # (chord_notes, bass_root, bass_walk)
 
-# Track pad notes across bars (mutable container to avoid nonlocal in nested fn)
-_cafe_pad_notes: list = []
+    # --- Section A: Corcovado feel — i-IV7-bVII-bIII ---
+    ([57, 60, 64, 67], 45, 52),   # Am7    A2→E3
+    ([62, 66, 69, 72], 38, 45),   # D7     D2→A2
+    ([55, 59, 62, 66], 43, 50),   # Gmaj7  G2→D3
+    ([60, 64, 67, 71], 48, 55),   # Cmaj7  C3→G3
+
+    # --- Section B: Minor ii-V-i (Jobim chromatic descent) ---
+    ([54, 57, 60, 64], 42, 47),   # F#m7b5 F#2→B2
+    ([59, 63, 66, 69], 47, 54),   # B7     B2→F#3
+    ([52, 55, 59, 62], 40, 47),   # Em7    E2→B2
+    ([52, 56, 59, 62], 40, 47),   # E7     E2→B2  ← V7, tension before return
+
+    # --- Section C: Descending bass / Black Orpheus ---
+    ([57, 60, 64, 67], 45, 52),   # Am7    A2→E3
+    ([57, 60, 64, 67], 43, 41),   # Am7/G  G2→F2  ← same chord, bass drops to G
+    ([53, 57, 60, 64], 41, 40),   # Fmaj7  F2→E2  (chromatic approach)
+    ([52, 56, 59, 62], 40, 47),   # E7     E2→B2
+
+    # --- Section D: Resolution cadence ---
+    ([57, 60, 64, 67], 45, 52),   # Am7    A2→E3
+    ([50, 53, 57, 60], 38, 45),   # Dm7    D2→A2
+    ([47, 50, 53, 57], 47, 54),   # Bm7b5  B2→F#3
+    ([52, 56, 59, 62], 40, 47),   # E7     E2→B2  ← unresolved V7, loops to Am7
+]
 
 
 def play_cafe_bar(synth, bar_index: int, bar_start: float) -> None:
     """
-    Block until all note events for one cafe bar have fired.
+    Block until all note events for one cafe (bossa nova) bar have fired.
 
-    Pad (CH_1) is sustained across 4 bars per chord:
-      - noteOn  at bar_in_chord == 0, t=0
-      - noteOff at bar_in_chord == 3, t=3.95 SPB (near bar end)
+    Bossa nova rhythm pattern (Jobim / "Corcovado" feel):
+      t=0.00 SPB : kick + hihat + bass root + chord (beat 1)
+      t=0.50 SPB : chord hit (and of 1) ← characteristic bossa offbeat
+      t=1.00 SPB : side stick + hihat + chord (beat 2)
+      t=1.50 SPB : chord hit (and of 2) ← very characteristic
+      t=2.00 SPB : hihat + bass passing note — chord off
+      t=2.50 SPB : chord hit (and of 3)
+      t=3.00 SPB : hihat + chord (beat 4)
+      t=3.50 SPB : chord hit (and of 4)
+      t=3.85 SPB : all notes off
 
-    Beat layout per bar (straight 4/4):
-      t=0.00 SPB : piano stab ON + kick + hihat + bass_root ON (+ pad if chord onset)
-      t=0.60 SPB : piano stab OFF
-      t=0.95 SPB : bass_root OFF
-      t=1.00 SPB : hihat
-      t=2.00 SPB : hihat + bass_low ON
-      t=2.95 SPB : bass_low OFF
-      t=3.00 SPB : hihat
-      t=3.95 SPB : pad OFF (last bar of chord only)
+    Chord vel 22–35 (bossa piano is subtle). Hihat vel 15–20.
+    Side stick vel 32–38. Kick vel 20–25.
     """
-    global _cafe_pad_notes
-    spb = 60.0 / CAFE_BPM   # ≈ 0.811 s per beat
+    spb = 60.0 / CAFE_BPM   # ≈ 0.833 s per beat
 
-    chord_idx   = (bar_index % 16) // 4
-    bar_in_chord = bar_index % 4
-    chord_notes, bass_root, bass_low = CAFE_CHORD_SEQ[chord_idx]
+    chord_notes, bass_root, bass_walk = CAFE_CHORD_SEQ[bar_index % 16]
 
-    # t=0 — piano stab + kick + hihat + bass root (+ pad noteOn if chord onset)
+    # t=0.00 — kick + hihat + bass root + chord beat 1
     sleep_until(bar_start)
-
-    if bar_in_chord == 0:
-        # Release previous pad notes if any
-        for n in _cafe_pad_notes:
-            synth.noteoff(CH_1, n)
-        # Start new pad
-        pv = _vel(42)
-        for n in chord_notes:
-            synth.noteon(CH_1, n, pv)
-        _cafe_pad_notes = list(chord_notes)
-
-    ep = _vel(58)
-    for n in chord_notes:
-        synth.noteon(CH_0, n, ep)
     synth.noteon(CH_DRUMS, DRUM_KICK,         _vel(22))
-    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(22))
-    synth.noteon(CH_2,     bass_root,         _vel(38))
-
-    # t=0.6 — piano stab OFF
-    sleep_until(bar_start + spb * 0.60)
-    for n in chord_notes:
-        synth.noteoff(CH_0, n)
-
-    # t=0.95 — bass root OFF
-    sleep_until(bar_start + spb * 0.95)
-    synth.noteoff(CH_2, bass_root)
-
-    # t=1 — hihat
-    sleep_until(bar_start + spb)
-    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(20))
-
-    # t=2 — hihat + bass low + beat-3 piano stab
-    sleep_until(bar_start + spb * 2.0)
-    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(20))
-    synth.noteon(CH_2,     bass_low,          _vel(35))
-    ep3 = _vel(44)
-    for n in chord_notes:
-        synth.noteon(CH_0, n, ep3)
-
-    # t=2.55 — beat-3 piano OFF
-    sleep_until(bar_start + spb * 2.55)
-    for n in chord_notes:
-        synth.noteoff(CH_0, n)
-
-    # t=2.95 — bass low OFF
-    sleep_until(bar_start + spb * 2.95)
-    synth.noteoff(CH_2, bass_low)
-
-    # t=3 — hihat
-    sleep_until(bar_start + spb * 3.0)
     synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(18))
+    synth.noteon(CH_1, bass_root, _vel(48))
+    cv = _vel(30)
+    for n in chord_notes:
+        synth.noteon(CH_0, n, cv)
 
-    # t=3.95 — pad OFF (last bar of chord only)
-    if bar_in_chord == 3:
-        sleep_until(bar_start + spb * 3.95)
-        for n in _cafe_pad_notes:
-            synth.noteoff(CH_1, n)
-        _cafe_pad_notes = []
+    # t=0.50 — chord hit (and of 1)
+    sleep_until(bar_start + spb * 0.5)
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+    cv = _vel(26)
+    for n in chord_notes:
+        synth.noteon(CH_0, n, cv)
+
+    # t=1.00 — side stick + hihat + chord beat 2
+    sleep_until(bar_start + spb)
+    synth.noteon(CH_DRUMS, DRUM_SIDE_STICK,   _vel(35))
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(17))
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+    cv = _vel(28)
+    for n in chord_notes:
+        synth.noteon(CH_0, n, cv)
+
+    # t=1.50 — chord hit (and of 2)
+    sleep_until(bar_start + spb * 1.5)
+    synth.noteoff(CH_1, bass_root)
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+    cv = _vel(24)
+    for n in chord_notes:
+        synth.noteon(CH_0, n, cv)
+
+    # t=2.00 — hihat + bass passing note; chord off
+    sleep_until(bar_start + spb * 2.0)
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(16))
+    synth.noteon(CH_1, bass_walk, _vel(42))
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+
+    # t=2.50 — chord hit (and of 3)
+    sleep_until(bar_start + spb * 2.5)
+    cv = _vel(26)
+    for n in chord_notes:
+        synth.noteon(CH_0, n, cv)
+
+    # t=3.00 — hihat + chord beat 4
+    sleep_until(bar_start + spb * 3.0)
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(17))
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+    cv = _vel(28)
+    for n in chord_notes:
+        synth.noteon(CH_0, n, cv)
+
+    # t=3.50 — chord hit (and of 4)
+    sleep_until(bar_start + spb * 3.5)
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+    cv = _vel(24)
+    for n in chord_notes:
+        synth.noteon(CH_0, n, cv)
+
+    # t=3.85 — all notes off
+    sleep_until(bar_start + spb * 3.85)
+    for n in chord_notes:
+        synth.noteoff(CH_0, n)
+    synth.noteoff(CH_1, bass_walk)
 
 
 # ---------------------------------------------------------------------------
@@ -348,13 +377,13 @@ def play_cafe_bar(synth, bar_index: int, bar_start: float) -> None:
 
 def play_jazzy_oneshot(synth, bar_index: int, bar_start: float, variant: str = "stop") -> None:
     spb = 60.0 / JAZZY_BPM
-    chord_notes, bass_root, bass_fifth = JAZZY_BARS[bar_index % 32]
+    chord_notes, bass_root, bass_fifth = JAZZY_BARS[bar_index % 16]
 
     # t=0 — kick + ride + bass root (no piano on beat 1)
     sleep_until(bar_start)
     synth.noteon(CH_DRUMS, DRUM_KICK, _vel(50))
     synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(46))
-    synth.noteon(CH_1, bass_root, _vel(60))
+    synth.noteon(CH_1, bass_root, _vel(57))
 
     # t=0.5 — ride offbeat
     sleep_until(bar_start + spb * 0.5)
@@ -381,7 +410,7 @@ def play_jazzy_oneshot(synth, bar_index: int, bar_start: float, variant: str = "
     # t=2 — ride + bass fifth
     sleep_until(bar_start + spb * 2.0)
     synth.noteon(CH_DRUMS, DRUM_RIDE, _vel(42))
-    synth.noteon(CH_1, bass_fifth, _vel(56))
+    synth.noteon(CH_1, bass_fifth, _vel(52))
 
     # t=2.5 — ride offbeat
     sleep_until(bar_start + spb * 2.5)
@@ -412,20 +441,18 @@ def play_jazzy_oneshot(synth, bar_index: int, bar_start: float, variant: str = "
 
 def play_cafe_oneshot(synth, bar_index: int, bar_start: float, variant: str = "stop") -> None:
     """
-    One-shot cafe bar: same drums/bass as normal, piano arpeggios instead of stab.
-    Pad left untouched — it sustains from whatever state it's already in.
+    One-shot cafe bar: same drums/bass as normal, piano arpeggios instead of stabs.
     """
     spb = 60.0 / CAFE_BPM
-    chord_idx   = (bar_index % 16) // 4
-    chord_notes, bass_root, bass_low = CAFE_CHORD_SEQ[chord_idx]
-    # Play arpeggio one octave below pad so it cuts through instead of blending
+    chord_notes, bass_root, bass_walk = CAFE_CHORD_SEQ[bar_index % 16]
+    # Play arpeggio one octave below so it cuts through instead of blending
     arp_notes = [n - 12 for n in chord_notes]
 
     # t=0 — kick + hihat + bass root; arpeggio UP in mid-range
     sleep_until(bar_start)
     synth.noteon(CH_DRUMS, DRUM_KICK,         _vel(22))
-    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(22))
-    synth.noteon(CH_2,     bass_root,         _vel(38))
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(18))
+    synth.noteon(CH_1, bass_root, _vel(48))
     for i, n in enumerate(arp_notes):
         sleep_until(bar_start + i * 0.09)
         synth.noteon(CH_0, n, _vel(78 - i * 5))
@@ -437,24 +464,24 @@ def play_cafe_oneshot(synth, bar_index: int, bar_start: float, variant: str = "s
 
     # t=0.95 — bass root OFF
     sleep_until(bar_start + spb * 0.95)
-    synth.noteoff(CH_2, bass_root)
+    synth.noteoff(CH_1, bass_root)
 
     # t=1 — hihat
     sleep_until(bar_start + spb)
-    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(20))
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(17))
 
-    # t=2 — hihat + bass low
+    # t=2 — hihat + bass walk
     sleep_until(bar_start + spb * 2.0)
-    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(20))
-    synth.noteon(CH_2, bass_low, _vel(35))
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(16))
+    synth.noteon(CH_1, bass_walk, _vel(42))
 
-    # t=2.95 — bass low OFF
+    # t=2.95 — bass walk OFF
     sleep_until(bar_start + spb * 2.95)
-    synth.noteoff(CH_2, bass_low)
+    synth.noteoff(CH_1, bass_walk)
 
     # t=3 — hihat; question: top note echo / stop: arpeggio DOWN
     sleep_until(bar_start + spb * 3.0)
-    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(18))
+    synth.noteon(CH_DRUMS, DRUM_CLOSED_HIHAT, _vel(16))
     if variant == "question":
         synth.noteon(CH_0, arp_notes[-1], _vel(72))
     else:
@@ -479,9 +506,8 @@ def setup_jazzy(synth, sfid: int) -> None:
 
 
 def setup_cafe(synth, sfid: int) -> None:
-    synth.program_select(CH_0,     sfid,   0, GM_VIBRAPHONE)
-    synth.program_select(CH_1,     sfid,   0, GM_WARM_PAD)
-    synth.program_select(CH_2,     sfid,   0, GM_FINGER_BASS)
+    synth.program_select(CH_0,     sfid,   0, GM_ACOUSTIC_GRAND)
+    synth.program_select(CH_1,     sfid,   0, GM_ACOUSTIC_BASS)
     synth.program_select(CH_DRUMS, sfid, 128, 0)
 
 
