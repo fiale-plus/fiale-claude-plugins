@@ -5,6 +5,11 @@
         "hooks": [{ "type": "command", "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/vibes.sh --auto-start", "timeout": 5 }]
       }
     ],
+    "PostToolUse": [
+      {
+        "hooks": [{ "type": "command", "command": "python3 -c \"import json,os,sys,time; data=json.load(sys.stdin); tn=data.get('tool_name',''); f=os.path.expanduser('~/.claude/vibes.json'); s=json.load(open(f)) if os.path.exists(f) else {}; s.update({'one_shot':'question','updated_at':int(time.time())}); json.dump(s,open(f,'w')) if tn=='AskUserQuestion' and s.get('enabled') else None\" 2>/dev/null || true", "timeout": 3 }]
+      }
+    ],
     "Stop": [
       {
         "hooks": [{ "type": "command", "command": "python3 -c \"import json,os,time; f=os.path.expanduser('~/.claude/vibes.json'); s=json.load(open(f)) if os.path.exists(f) else {}; s.update({'one_shot':'stop','updated_at':int(time.time())}); json.dump(s,open(f,'w'))\" 2>/dev/null || true", "timeout": 3 }]

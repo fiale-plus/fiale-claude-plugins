@@ -141,7 +141,7 @@ with open('$STATE_FILE', 'w') as f: json.dump(s, f)
 
 case "${1:-}" in
 
-    jazzy|cafe)
+    jazzy|cafe|synth)
         _start_mode "$1"
         ;;
 
@@ -176,7 +176,7 @@ case "${1:-}" in
         if _is_daemon_running "$pid"; then
             exit 0   # already running in another session
         fi
-        if [[ "$mode" != "jazzy" && "$mode" != "cafe" ]]; then
+        if [[ "$mode" != "jazzy" && "$mode" != "cafe" && "$mode" != "synth" ]]; then
             mode="jazzy"
         fi
         _spawn_daemon
@@ -218,7 +218,7 @@ with open('$STATE_FILE', 'w') as f: json.dump(s, f)
         ;;
 
     *)
-        echo "Usage: vibes [jazzy|cafe|off]" >&2
+        echo "Usage: vibes [jazzy|cafe|synth|off]" >&2
         exit 1
         ;;
 

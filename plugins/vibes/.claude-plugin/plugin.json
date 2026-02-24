@@ -1,7 +1,7 @@
 {
   "name": "vibes",
-  "version": "2.0.0",
-  "description": "Opinionated background music for Claude sessions — jazzy dinner jazz or Cafe del Mar Balearic chill, driven by chord progression not tool events",
+  "version": "2.1.0",
+  "description": "Opinionated background music for Claude sessions — jazzy dinner jazz, Cafe del Mar Balearic chill, or retro 80s synthwave, driven by chord progressions not tool events",
   "author": { "name": "Pavel Fadeev", "email": "pavel.fadeev@gmail.com" },
   "license": "MIT",
   "keywords": ["claude-code", "audio", "hooks", "music", "ambient", "fluidsynth"]
