@@ -7,7 +7,9 @@
 # Used by UserPromptSubmit hook.
 
 CONFIG="${HOME}/.claude/status-config.json"
-SESSION_FLAG="/tmp/remote-layout-suggested-${PPID}"
+# Use grandparent PID (the stable claude session process) for session-scoped flag
+CLAUDE_PID=$(ps -p "$PPID" -o ppid= 2>/dev/null | tr -d ' ')
+SESSION_FLAG="/tmp/remote-layout-suggested-${CLAUDE_PID:-$PPID}"
 
 # Already active — skip
 if [ -f "$CONFIG" ] && jq -e '.remoteLayout == true' "$CONFIG" >/dev/null 2>&1; then
@@ -25,7 +27,8 @@ is_remote() {
   local pid
   pid=$(pgrep rapportd 2>/dev/null | head -1)
   [ -z "$pid" ] && return 1
-  lsof -p "$pid" -i 2>/dev/null \
+  # -n keeps mDNS .local hostnames visible (e.g. pavels-iphone.local)
+  lsof -p "$pid" -i -n 2>/dev/null \
     | grep "ESTABLISHED" \
     | grep -qi "iphone\|ipad" && return 0
 
