@@ -75,6 +75,26 @@
       ]
     },
     {
+      "name": "remote-layout",
+      "description": "Mobile-friendly responses for Claude Code remote control sessions — auto-detects iPhone/iPad and switches to compact code-block format optimised for small screens",
+      "version": "1.0.0",
+      "author": {
+        "name": "Pavel Fadeev",
+        "email": "pavel.fadeev@gmail.com",
+        "url": "https://fiale.plus"
+      },
+      "source": "./plugins/remote-layout",
+      "category": "productivity",
+      "keywords": [
+        "remote",
+        "mobile",
+        "layout",
+        "iphone",
+        "statusline",
+        "formatting"
+      ]
+    },
+    {
       "name": "vibes",
       "description": "Sentiment-driven musical phrases on Claude Code events — triumphant on success, contemplative when waiting",
       "version": "1.0.0",
