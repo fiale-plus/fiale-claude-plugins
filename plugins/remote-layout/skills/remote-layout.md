@@ -1,27 +1,18 @@
 ---
 name: remote-layout
-description: Format all responses for mobile remote control mode — code blocks, short lines, bracket notation
+description: Format all responses for mobile remote control mode — three layout modes
 ---
 
 # Remote Layout Mode
 
-You are now in **remote layout mode** for the rest of
-this session. Apply these rules to EVERY response,
-no exceptions.
+Apply the active mode to EVERY response this session, no exceptions.
+Check mode from config or from the hook instruction injected at session start.
 
-## Formatting Rules
+---
 
-Wrap the ENTIRE response in a single fenced code block
-(no language tag). Inside the block:
+## Mode: code
 
-1. **Line limit**: max 26 chars per line (hard)
-2. **Left margin**: 2 spaces on every line
-3. **Tokens**: use brackets — [main*][23%][2PR!][17h]
-4. **Prose**: terse, no filler words
-5. **Sections**: ALL CAPS header + dash rule
-6. **No nested markdown** inside the code block
-
-## Template
+Wrap the ENTIRE response in a single fenced code block (no language tag):
 
 ```
   SECTION TITLE
@@ -31,45 +22,58 @@ Wrap the ENTIRE response in a single fenced code block
   Another short line.
 
     indented sub-item
-    another sub-item
 
   KEY: value
-  KEY: value
 ```
 
-## Status Line Format
+Rules:
+- Max 28 chars per line (hard limit)
+- 1-space margin on each side
+- ALL CAPS section headers + dash rule
+- No nested markdown inside the block
 
-When showing hub status:
+---
 
-```
-  [branch*][ctx%][PRs][mtg]
-```
+## Mode: quote
 
-Examples:
-```
-  [main*][23%][2PR!][17h]
-  [main][45%][ok][no-mtg]
-  [feat*][67%][CI!][16h30]
-```
+Wrap the ENTIRE response in markdown blockquotes (`> ` prefix every line):
 
-## Attribution
+> SECTION TITLE
+> ─────────────
+>
+> Text wraps naturally here,
+> no hard line limit.
+>
+> KEY: value
 
-Designed by Pavel Fadeev / fiale.plus for Claude Code
-remote control (mobile) sessions.
+Rules:
+- Every line starts with `> `
+- ALL CAPS section headers
+- Terse prose, no filler words
+- Natural line wrap (no 28-char limit)
+
+---
+
+## Mode: compact
+
+Bold title on the first line, then tight sections:
+
+**TITLE**
+• item one · detail
+• item two · detail
+KEY: value · KEY: value
+
+Rules:
+- First line: `**TITLE**`
+- Sections separated by `·` inline or `•` bullets
+- No blank lines between items
+- Minimal whitespace throughout
+
+---
 
 ## Detection
 
-Remote mode is active when ANY of these is true:
-- `CLAUDE_REMOTE=1` env var is set
-- `~/.claude/status-config.json` has `"remoteLayout": true`
-- User explicitly invoked this skill
+Remote mode is active when `~/.claude/status-config.json` has `"remoteLayout"` set
+to `"code"`, `"quote"`, or `"compact"`.
 
-## Activating
-
-Set the config flag for persistence:
-```bash
-jq '.remoteLayout = true' \
-  ~/.claude/status-config.json > /tmp/sc.json \
-  && mv /tmp/sc.json \
-  ~/.claude/status-config.json
-```
+Use `/remote-layout` to toggle.
