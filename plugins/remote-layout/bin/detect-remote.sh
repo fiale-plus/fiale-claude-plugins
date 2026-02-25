@@ -23,15 +23,14 @@ is_remote() {
   # Signal 1: official env var (future Anthropic support)
   [ "${CLAUDE_REMOTE:-}" = "1" ] && return 0
 
-  # Signal 2: rapportd has established fe80 (link-local) connection.
-  # rapportd is Apple's Continuity relay — fe80 ESTABLISHED connections
-  # exclusively indicate a nearby Apple device (iPhone/iPad/Watch).
+  # Signal 2: rapportd has established iPhone/iPad connection (macOS Continuity)
   local pid
   pid=$(pgrep rapportd 2>/dev/null | head -1)
   [ -z "$pid" ] && return 1
+  # -n keeps mDNS .local hostnames visible (e.g. pavels-iphone.local)
   lsof -p "$pid" -i -n 2>/dev/null \
     | grep "ESTABLISHED" \
-    | grep -q "fe80" && return 0
+    | grep -qi "iphone\|ipad" && return 0
 
   return 1
 }
