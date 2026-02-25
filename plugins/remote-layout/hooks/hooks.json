@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/bin/detect-remote.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

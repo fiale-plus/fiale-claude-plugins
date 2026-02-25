@@ -69,6 +69,24 @@ Pure-Python synthesis — no audio files, no dependencies. Requires macOS (`afpl
 
 → [Full documentation](plugins/vibes)
 
+## Remote Layout
+
+**Mobile-friendly responses for Claude Code remote control sessions.**
+
+Detects when you're connected from an iPhone/iPad and suggests activating a compact
+code-block format optimised for small screens — 26-char line limit, bracket tokens,
+zoom-mode friendly.
+
+*Designed entirely from a phone during a live remote control session.*
+
+**Install:**
+```bash
+/plugin marketplace add fiale-plus/fiale-claude-plugins
+/plugin install remote-layout
+```
+
+→ [Full documentation](plugins/remote-layout)
+
 ## License
 
 MIT
