@@ -1,7 +1,7 @@
 {
   "name": "remote-layout",
-  "version": "1.0.2",
-  "description": "Mobile-friendly layout for Claude Code remote control mode — three layout modes (code/quote/compact) for small screens",
+  "version": "1.0.5",
+  "description": "Mobile-friendly layout for Claude Code remote control mode — code/code-wrap/watch modes for small screens",
   "author": { "name": "Pavel Fadeev", "email": "pavel.fadeev@gmail.com", "url": "https://fiale.plus" },
   "license": "MIT",
   "keywords": ["claude-code", "remote", "mobile", "layout", "statusline"]
