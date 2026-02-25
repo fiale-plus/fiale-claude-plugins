@@ -73,11 +73,27 @@ Pure-Python synthesis — no audio files, no dependencies. Requires macOS (`afpl
 
 **Mobile-friendly responses for Claude Code remote control sessions.**
 
-Detects when you're connected from an iPhone/iPad and suggests activating a compact
-code-block format optimised for small screens — 26-char line limit, bracket tokens,
-zoom-mode friendly.
+Switch Claude's response format for small screens with `/remote-layout <mode>`:
 
-*Designed entirely from a phone during a live remote control session.*
+| Mode | Description |
+|------|-------------|
+| `code` | Fenced code block, 28-char lines — tight monospace |
+| `code-wrap` | Fenced code block, no line limit — zoom-mode autowrap |
+| `watch` | Ultra-terse, always ends with 3 numbered REPLY options for one-tap responses |
+
+```
+ STATUS
+ ──────
+ mode: watch · v1.0.5
+
+ REPLY
+ ─────
+ 1: install now
+ 2: read the docs
+ 3: skip
+```
+
+*Designed entirely from a phone during a live remote control session (Feb 2026).*
 
 **Install:**
 ```bash
