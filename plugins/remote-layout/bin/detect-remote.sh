@@ -3,7 +3,7 @@
 # Author: Pavel Fadeev / fiale.plus
 # Origin: Live iPhone remote control session, Feb 2026
 # Detect remote control mode (Claude mobile app connected)
-# Outputs suggestion to stdout if detected (once per session).
+# Outputs formatting instruction to stdout if detected (once per session).
 # Used by UserPromptSubmit hook.
 
 CONFIG="${HOME}/.claude/status-config.json"
@@ -11,19 +11,17 @@ CONFIG="${HOME}/.claude/status-config.json"
 CLAUDE_PID=$(ps -p "$PPID" -o ppid= 2>/dev/null | tr -d ' ')
 SESSION_FLAG="/tmp/remote-layout-suggested-${CLAUDE_PID:-$PPID}"
 
-# Already active — skip
-if [ -f "$CONFIG" ] && jq -e '.remoteLayout == true' "$CONFIG" >/dev/null 2>&1; then
-  exit 0
-fi
-
-# Already suggested this session — skip
+# Already notified this session — skip
 [ -f "$SESSION_FLAG" ] && exit 0
 
 is_remote() {
-  # Signal 1: official env var (future Anthropic support)
+  # Signal 1: claude remote-control session active (CLAUDE_CODE_REMOTE set by claude remote-control)
+  [ -n "${CLAUDE_CODE_REMOTE:-}" ] && return 0
+
+  # Signal 2: manual env var override
   [ "${CLAUDE_REMOTE:-}" = "1" ] && return 0
 
-  # Signal 2: rapportd has established iPhone/iPad connection (macOS Continuity)
+  # Signal 3: rapportd has established iPhone/iPad connection (macOS Continuity)
   local pid
   pid=$(pgrep rapportd 2>/dev/null | head -1)
   [ -z "$pid" ] && return 1
@@ -35,9 +33,17 @@ is_remote() {
   return 1
 }
 
+# If remoteLayout manually enabled in config — remind Claude
+if [ -f "$CONFIG" ] && jq -e '.remoteLayout == true' "$CONFIG" >/dev/null 2>&1; then
+  touch "$SESSION_FLAG"
+  echo "Note: remote layout is active (mobile session). Apply mobile-friendly formatting to all responses this session."
+  exit 0
+fi
+
+# Auto-detect remote session
 if is_remote; then
   touch "$SESSION_FLAG"
-  echo "Note: mobile device detected. Run /remote to activate mobile-friendly layout."
+  echo "Note: remote control session detected. Apply mobile-friendly formatting to all responses this session."
 fi
 
 exit 0

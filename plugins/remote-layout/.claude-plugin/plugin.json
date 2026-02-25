@@ -1,6 +1,6 @@
 {
   "name": "remote-layout",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Mobile-friendly layout for Claude Code remote control mode — compact code-block responses, bracket notation, 26-char line limit",
   "author": { "name": "Pavel Fadeev", "email": "pavel.fadeev@gmail.com", "url": "https://fiale.plus" },
   "license": "MIT",
