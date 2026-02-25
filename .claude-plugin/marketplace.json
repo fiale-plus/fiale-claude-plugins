@@ -76,8 +76,8 @@
     },
     {
       "name": "remote-layout",
-      "description": "Mobile-friendly responses for Claude Code remote control sessions — auto-detects iPhone/iPad and switches to compact code-block format optimised for small screens",
-      "version": "1.0.1",
+      "description": "Mobile-friendly responses for Claude Code remote control sessions — three layout modes (code/quote/compact) optimised for small screens",
+      "version": "1.0.2",
       "author": {
         "name": "Pavel Fadeev",
         "email": "pavel.fadeev@gmail.com",
