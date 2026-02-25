@@ -20,11 +20,11 @@ emit_mode_instruction() {
     code)
       echo "Note: remote layout [code] active. Wrap ALL responses in a single fenced code block (no language tag), max 28 chars/line, 1-space margin each side, ALL CAPS section headers with dash rule. No exceptions."
       ;;
-    quote)
-      echo "Note: remote layout [quote] active. Prefix EVERY line of ALL responses with '> ' (markdown blockquote). ALL CAPS section headers. Terse prose, natural line wrap. No exceptions."
+    code-wrap)
+      echo "Note: remote layout [code-wrap] active. Wrap ALL responses in a single fenced code block (no language tag), no line limit (zoom-mode autowrap), 1-space margin each side, ALL CAPS section headers with dash rule. No exceptions."
       ;;
-    compact)
-      echo "Note: remote layout [compact] active. Format ALL responses as: bold title on first line, tight bullet/key-value lines with · separators, no blank lines between items. No exceptions."
+    watch)
+      echo "Note: remote layout [watch] active. Wrap ALL responses in a fenced code block, ultra-terse content (tokens/values only, no prose), 1-space margin each side, ALL CAPS section headers with dash rule. ALWAYS end EVERY response with a REPLY section offering exactly 3 numbered continuations (more only if truly necessary). No exceptions."
       ;;
     *)
       echo "Note: remote layout active (mobile session). Apply mobile-friendly formatting to all responses this session."

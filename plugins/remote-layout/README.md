@@ -19,20 +19,20 @@ formatting, this work and these session learnings originated with Pavel Fadeev /
 
 - Detects when Claude Code is running in remote control mode (iPhone/iPad connected)
 - Suggests activating mobile-friendly layout on first prompt of the session
-- `/remote-layout` command switches all responses to one of three compact formats
+- `/remote-layout` command switches all responses to one of three modes
 
 ## Modes
 
 | Mode | Format |
 |------|--------|
 | `code` | Fenced code block, 28-char lines, 1-space margins |
-| `quote` | Markdown blockquote, natural wrap |
-| `compact` | Bold title + tight bullet/key-value lines |
+| `code-wrap` | Fenced code block, no line limit, zoom-mode autowrap |
+| `watch` | Ultra-terse code block, always ends with numbered REPLY options |
 
 ```
 /remote-layout code
-/remote-layout quote
-/remote-layout compact
+/remote-layout code-wrap
+/remote-layout watch
 /remote-layout off
 ```
 
@@ -55,7 +55,7 @@ formatting, this work and these session learnings originated with Pavel Fadeev /
 
 1. `CLAUDE_CODE_ENVIRONMENT_KIND=bridge` (claude remote-control session)
 2. `rapportd` process with iPhone/iPad connection (macOS Continuity)
-3. Manual: `"remoteLayout": "code"|"quote"|"compact"` in `~/.claude/status-config.json`
+3. Manual: `"remoteLayout": "code"|"code-wrap"|"watch"` in `~/.claude/status-config.json`
 
 ## Install
 
