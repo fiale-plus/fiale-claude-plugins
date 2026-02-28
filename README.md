@@ -5,15 +5,34 @@ Plugins for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-blueviolet)](https://docs.anthropic.com/en/docs/claude-code)
 
+## Plugins
+
+| Plugin | What it does |
+|--------|-------------|
+| [Status Hub](#status-hub) | Track PRs, calendar, Slack, stocks, music in your statusline |
+| [TradingView](#tradingview) | AI-powered market screening via 75+ indicators |
+| [local-brain](#local-brain) | Auto-capture sessions into a compounding Obsidian vault |
+| [mdbrowser](#mdbrowser) | Browse any URL as clean markdown |
+| [Vibes](#vibes) | Sentiment-driven musical phrases on task completion |
+| [Remote Layout](#remote-layout) | Mobile-friendly response formatting for remote sessions |
+
+---
+
 ## Status Hub
 
 **Your world at a glance, without leaving the terminal.**
 
-![Status Hub Demo](plugins/claude-status-hub/assets/demo.gif)
+Track PRs, calendar, Slack, stocks, and music — all surfaced in your Claude Code statusline. Alerts appear non-blocking; `/hub-ack` gives smart context-aware actions (merge PR, join meeting, reply to Slack).
 
-Track PRs, calendar, Slack, stocks, music—all in your statusline.
-
-**The flow:** `/hub-setup` → add monitors → alerts appear → `/hub-ack` for smart actions (merge PR, join meeting, reply to Slack).
+```
+/hub-setup          →  Configure statusline integration
+       ↓
+/hub-<service>      →  Add monitors (PRs, calendar, Slack, finance)
+       ↓
+[statusline alert]  →  Non-blocking notification appears
+       ↓
+/hub-ack            →  Smart actions based on context
+```
 
 **Install:**
 ```bash
@@ -22,11 +41,15 @@ Track PRs, calendar, Slack, stocks, music—all in your statusline.
 /hub-setup
 ```
 
-→ [Full documentation](plugins/claude-status-hub) — workflow examples, all services, commands
+→ [Full documentation](plugins/claude-status-hub)
+
+---
 
 ## TradingView
 
 **AI-powered market screening, without leaving the terminal.**
+
+Screen stocks, forex, crypto, and ETFs using TradingView's 75+ fundamental and technical indicators. Check market regime across global indexes before running a screening strategy.
 
 ```
 /market-regime
@@ -38,11 +61,7 @@ Track PRs, calendar, Slack, stocks, music—all in your statusline.
 │ OMX Stockholm 30    │ 2,547    │ 2,601    │ -2.08%    │ 🟢     │
 │ Nikkei 225          │ 38,026   │ 42,426   │ -10.37%   │ 🔴     │
 └─────────────────────┴──────────┴──────────┴───────────┴────────┘
-
-Overall: 2/3 indexes in normal range
 ```
-
-Screen stocks, forex, crypto, and ETFs using TradingView's 75+ fundamental and technical indicators.
 
 **Install:**
 ```bash
@@ -53,13 +72,56 @@ Screen stocks, forex, crypto, and ETFs using TradingView's 75+ fundamental and t
 
 → [Full documentation](plugins/tradingview)
 
+---
+
+## local-brain
+
+**Every Claude Code session, synthesized into a compounding Obsidian vault.**
+
+Auto-captures transcripts on session end (zero manual steps), synthesizes them into structured Obsidian notes — summaries, decisions, learnings, alignment signal. Weekly reflections surface patterns across sessions. Knowledge compounds automatically over time.
+
+**Install:**
+```bash
+/plugin marketplace add fiale-plus/fiale-claude-plugins
+/plugin install local-brain
+/brain-setup
+```
+
+→ [Full documentation](plugins/local-brain)
+
+---
+
+## mdbrowser
+
+**Browse any website as markdown, without leaving the terminal.**
+
+One-shot fetch converts any URL to clean markdown. Interactive sessions let you click links, fill forms, and navigate — all through Claude's tool calls.
+
+```
+/browse https://news.ycombinator.com
+
+# Hacker News
+
+- [Show HN: I built a thing](https://example.com) — 142 points
+- [Why Rust is eating the world](https://example.com) — 89 points
+```
+
+**Install:**
+```bash
+/plugin marketplace add fiale-plus/fiale-claude-plugins
+/plugin install mdbrowser
+/browse https://example.com
+```
+
+→ [Full documentation](plugins/mdbrowser)
+
+---
+
 ## Vibes
 
 **Your session's emotional arc, in sound.**
 
-Plays a short musical phrase whenever Claude finishes a task or needs your attention. Mood is inferred from the transcript: triumphant on success, gentle descend on errors, unresolved on notifications, settled when neutral.
-
-Pure-Python synthesis — no audio files, no dependencies. Requires macOS (`afplay`).
+Plays a short musical phrase whenever Claude finishes a task or needs your attention. Mood is inferred from the transcript: triumphant on success, gentle descent on errors, unresolved on notifications. Pure-Python synthesis — no audio files, no dependencies. Requires macOS (`afplay`).
 
 **Install:**
 ```bash
@@ -69,39 +131,30 @@ Pure-Python synthesis — no audio files, no dependencies. Requires macOS (`afpl
 
 → [Full documentation](plugins/vibes)
 
+---
+
 ## Remote Layout
 
 **Mobile-friendly responses for Claude Code remote control sessions.**
 
-Switch Claude's response format for small screens with `/remote-layout <mode>`:
+Switch Claude's response format for small screens. Three modes: `code` (hard 28-char lines), `code-wrap` (zoom-mode autowrap), `watch` (ultra-terse with one-tap numbered replies). Persists across sessions.
 
 | Mode | Description |
 |------|-------------|
 | `code` | Fenced code block, 28-char lines — tight monospace |
 | `code-wrap` | Fenced code block, no line limit — zoom-mode autowrap |
-| `watch` | Ultra-terse, always ends with 3 numbered REPLY options for one-tap responses |
-
-```
- STATUS
- ──────
- mode: watch · v1.0.5
-
- REPLY
- ─────
- 1: install now
- 2: read the docs
- 3: skip
-```
-
-*Designed entirely from a phone during a live remote control session (Feb 2026).*
+| `watch` | Ultra-terse, always ends with 3 numbered REPLY options |
 
 **Install:**
 ```bash
 /plugin marketplace add fiale-plus/fiale-claude-plugins
 /plugin install remote-layout
+/remote-layout watch
 ```
 
 → [Full documentation](plugins/remote-layout)
+
+---
 
 ## License
 
