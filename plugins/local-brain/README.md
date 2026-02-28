@@ -25,52 +25,21 @@ Claude Code session ends
 
 ---
 
-## Prerequisites
+## Installation
 
-- Claude Code installed
-- Python 3 (`python3 --version`)
-- Obsidian installed (for reading notes — not required for capture)
-- `fiale-claude-plugins` cloned locally
-
----
-
-## Installation (first machine)
-
-### 1. Clone the plugin repo (if not already)
-
-```bash
-git clone https://github.com/fiale-plus/fiale-claude-plugins ~/repos/fiale-plus/fiale-claude-plugins
+```
+/plugin install local-brain
 ```
 
-### 2. Register the plugin
-
-Add to `~/.claude/plugins/installed_plugins.json` under `"plugins"`:
-
-```json
-"local-brain@fiale-claude-plugins": [{
-  "scope": "user",
-  "installPath": "/Users/you/repos/fiale-plus/fiale-claude-plugins/plugins/local-brain",
-  "version": "1.0.0",
-  "installedAt": "2026-01-01T00:00:00.000Z",
-  "lastUpdated": "2026-01-01T00:00:00.000Z"
-}]
-```
-
-### 3. Restart Claude Code
-
-The plugin loads at session start. Restart to pick it up.
-
-### 4. Run setup
+Then run first-time setup:
 
 ```
 /brain-setup
 ```
 
-This creates the vault structure, writes `~/.claude/local-brain/config.json`, and optionally sets up scheduling.
+This creates the vault structure at `~/brain/`, writes `~/.claude/local-brain/config.json`, and offers to set up scheduling.
 
-### 5. Fill in your Polaris docs
-
-Edit `~/brain/Polaris/top-of-mind.md` — what matters most right now. The `/synthesize` command reads this to assess each session's alignment with your goals. Keep it current.
+Finally, edit `~/brain/Polaris/top-of-mind.md` — what matters most right now. `/synthesize` reads this to assess each session's alignment with your goals.
 
 ---
 
