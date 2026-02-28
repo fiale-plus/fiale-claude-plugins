@@ -1,5 +1,8 @@
 # vibes
 
+[![Claude Code Plugin](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet)](https://docs.anthropic.com/en/docs/claude-code)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
+
 Sentiment-driven musical phrases on Claude Code events — triumphant on success, contemplative when waiting.
 
 ## What it does
@@ -45,6 +48,7 @@ with an exponential decay envelope and gentle legato overlap between notes. Outp
 ## Installation
 
 ```bash
+/plugin marketplace add fiale-plus/fiale-claude-plugins
 /plugin install vibes
 ```
 

@@ -27,13 +27,9 @@ Claude Code session ends
 
 ## Installation
 
-```
+```bash
+/plugin marketplace add fiale-plus/fiale-claude-plugins
 /plugin install local-brain
-```
-
-Then run first-time setup:
-
-```
 /brain-setup
 ```
 
