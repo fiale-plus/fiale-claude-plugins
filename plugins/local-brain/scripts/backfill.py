@@ -149,7 +149,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("import_dir", help="Directory containing .jsonl transcript files")
+    parser.add_argument("import_dir", nargs="?",
+                        help="Directory containing .jsonl transcript files. "
+                             "Defaults to sources_path from config (aggregator role).")
     parser.add_argument("--since", metavar="YYYY-MM-DD", help="Only include transcripts from this date onwards")
     parser.add_argument("--until", metavar="YYYY-MM-DD", help="Only include transcripts up to this date")
     parser.add_argument("--limit", type=int, metavar="N", help="Queue at most N transcripts")
@@ -168,6 +170,17 @@ def main():
 
     config = load_config()
     vault_path = config.get("vault_path", str(Path.home() / "brain"))
+
+    import_dir = args.import_dir
+    if not import_dir:
+        sources_path = config.get("sources_path", "")
+        if not sources_path:
+            print("ERROR: no import_dir given and no sources_path in config.", file=sys.stderr)
+            print("Usage: backfill.py <import_dir>  or set sources_path in config.json", file=sys.stderr)
+            sys.exit(1)
+        import_dir = sources_path
+        print(f"Using sources_path from config: {import_dir}")
+    args.import_dir = import_dir
 
     existing_queue = load_queue()
     existing_queue_set = set(existing_queue)

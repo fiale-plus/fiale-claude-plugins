@@ -161,135 +161,173 @@ Each mechanism builds on the previous:
 
 ### Machine roles
 
-Each machine in your fleet plays one of three roles:
+Each machine plays one of three roles:
 
-| Role | Captures | Synthesizes | Vault sync | Best for |
-|------|:--------:|:-----------:|:----------:|---------|
-| **source** | ✓ | — | Receive Only | workhorse laptops |
-| **aggregator** | — | ✓ | Send & Receive | always-on desktop or server |
-| **standalone** | ✓ | ✓ | Send & Receive | single-machine setup |
+| Role | Captures sessions | Synthesizes | Transcripts | Vault |
+|------|:-----------------:|:-----------:|:-----------:|:-----:|
+| **source** | ✓ | — | Send Only → server | Receive Only |
+| **aggregator** | — | ✓ | Receive Only ← leaves | Send & Receive |
+| **standalone** | ✓ | ✓ | — | Send & Receive |
 
-Run `/brain-role` on each machine to configure its role. The command sets `config.json`, configures Syncthing direction, and wires up scheduling (or removes it for source machines).
+Run `/brain-role` on each machine to configure its role.
 
-**Source machines** queue sessions silently via the Stop hook. The vault is receive-only — they read notes but never write them. The aggregator pulls their transcripts and does all synthesis.
+---
 
-**Aggregator** runs `/synthesize` on a schedule, rsyncs transcripts from each source machine first, writes all vault notes. Other machines get the notes via Syncthing.
+### Syncthing setup
 
-**Standalone** is the simplest: one machine does everything. No rsync needed.
+Two Syncthing folders, opposite directions:
 
-### Syncthing vault sync (recommended)
+```
+Leaf machines (laptops)          Server (aggregator)
+~/.claude/projects/  ──────────→  ~/brain-sources/<machine-name>/
+                     Send Only      Receive Only
 
-Install the plugin on each machine. Each machine independently captures sessions and writes to its local `~/brain/` copy. Syncthing keeps the vault identical across all machines with no cloud involvement — notes from laptop A appear on laptop B automatically.
+~/brain/             ←──────────  ~/brain/
+Receive Only                       Send & Receive
+```
 
-#### Install Syncthing
+Transcripts flow **leaf → server** so the server can synthesize them.
+Vault notes flow **server → leaves** so synthesized notes appear everywhere.
+
+Each leaf gets its own named folder on the server (`~/brain-sources/macbook/`, `~/brain-sources/linux1/`, etc.) because Syncthing shared folders are per-pair and cannot merge multiple sources into one path.
+
+---
+
+#### Step 1 — Install Syncthing on every machine
 
 **macOS:**
 ```bash
 brew install syncthing
-brew services start syncthing   # runs in background, survives reboots
+brew services start syncthing
 ```
 
 **Linux (systemd):**
 ```bash
-sudo apt install syncthing      # or: snap install syncthing
+sudo apt install syncthing
 systemctl --user enable --now syncthing
 ```
 
-**Linux (no systemd):**
+**Linux (no systemd / server):**
 ```bash
-syncthing &   # or add to ~/.profile / crontab @reboot
+# Add to crontab:
+@reboot syncthing --no-browser
 ```
 
-#### Configure the shared folder (do this once on the first machine)
+#### Step 2 — Pair all machines
 
-1. Open the web UI: **http://127.0.0.1:8384**
-2. Click **Add Folder**
-3. Set **Folder Path** to `~/brain` (the full path, e.g. `/Users/pavel/brain`)
-4. Give it a **Folder Label** like `brain`
-5. Leave **Folder ID** as-is (auto-generated) — you'll need it when adding other devices
-6. Click **Save**
+Do this once between each pair (leaf ↔ server):
 
-#### Add each additional machine as a device
+1. On each machine open **http://127.0.0.1:8384**
+2. On the server: **Actions → Show ID** — copy the Device ID
+3. On the leaf: **Add Remote Device** → paste server Device ID, name it `server`
+4. On the server: accept the incoming connection request from the leaf, name it (e.g. `macbook`)
 
-On **machine A** (already configured):
-1. Web UI → **Add Remote Device**
-2. Enter the **Device ID** from machine B (find it on machine B: web UI → Actions → Show ID, or run `syncthing --device-id`)
-3. Give it a name (e.g. `linux-laptop`)
-4. Click **Save**
+Repeat for every leaf.
 
-On **machine B** (new machine):
-1. Install and start Syncthing (see above)
-2. Open web UI → a notification appears: "Device X wants to connect" → click **Add Device**
-3. Another notification: "Device X wants to share folder brain" → click **Add** → set local path to `~/brain`
-4. Click **Save**
+#### Step 3 — Share transcripts (leaf → server, one folder per leaf)
 
-Syncing starts immediately. Changes on any machine propagate to all others within seconds (when online) or on next connect (when offline).
+**On the leaf machine:**
+1. Web UI → **Add Folder**
+2. Folder Path: `~/.claude/projects`
+3. Folder Label: `transcripts-<machine-name>` (e.g. `transcripts-macbook`)
+4. Folder ID: `transcripts-macbook` (set manually — must be unique per leaf)
+5. **Sharing** tab → tick the server device
+6. **Advanced** tab → Folder Type: **Send Only**
+7. Save
 
-#### Verify sync is working
+**On the server:**
+1. A notification appears: "leaf wants to share folder transcripts-macbook"
+2. Click **Add** → set local path to `~/brain-sources/macbook`
+3. **Advanced** tab → Folder Type: **Receive Only**
+4. Save
+
+Repeat steps 3 for each leaf, using a unique folder ID and subfolder name each time.
+
+#### Step 4 — Share vault (server → all leaves)
+
+**On the server:**
+1. Web UI → **Add Folder**
+2. Folder Path: `~/brain`
+3. Folder Label: `brain-vault`
+4. Folder ID: `brain-vault`
+5. **Sharing** tab → tick all leaf devices
+6. Folder Type: **Send & Receive** (server writes, leaves read)
+7. Save
+
+**On each leaf:**
+1. Accept the share request for `brain-vault`
+2. Set local path to `~/brain`
+3. **Advanced** tab → Folder Type: **Receive Only**
+4. Save
+
+#### Step 5 — Configure the aggregator
+
+Tell `/brain-role` where received transcripts live so `backfill.py` knows where to scan:
+
+```json
+{
+  "vault_path": "~/brain",
+  "role": "aggregator",
+  "sources_path": "~/brain-sources"
+}
+```
+
+The aggregator's scheduled job becomes:
+```bash
+# Scan all received transcript dirs and queue new ones
+python3 /path/to/backfill.py ~/brain-sources --min-messages 3
+# Then synthesize
+claude -p "/synthesize"
+```
+
+`backfill.py` scans `~/brain-sources/*/` recursively, so new leaves are picked up automatically just by setting up their Syncthing folder.
+
+#### Verify
 
 ```bash
-# On machine A: create a test file
-echo "sync test" > ~/brain/_AI/test-sync.md
+# On a leaf — end a Claude Code session, then check:
+ls ~/.claude/projects/ | tail -5
 
-# On machine B (after a few seconds):
-cat ~/brain/_AI/test-sync.md   # should print "sync test"
+# On the server (after a minute):
+ls ~/brain-sources/macbook/ | tail -5   # transcripts should appear
 
-# Clean up
-rm ~/brain/_AI/test-sync.md
+# On the leaf — check vault syncs back:
+ls ~/brain/_AI/sessions/   # notes from server should appear after /synthesize runs
 ```
 
 #### Conflict handling
 
-If the same file is edited on two machines while offline, Syncthing creates a conflict copy named `filename.sync-conflict-YYYYMMDD-HHMMSS-DEVICEID.md`. Since `/synthesize` writes to daily files and uses session ID markers for idempotency, conflicts are rare — two machines would have to synthesize different sessions into the same daily file simultaneously. If a conflict file appears, open both in Obsidian, merge manually, and delete the conflict copy.
+The vault is write-only from the server side — leaves are Receive Only and never write. This means vault conflicts cannot happen. If Syncthing reports a conflict file in `~/brain/`, it means a leaf's folder type was accidentally set to Send & Receive. Fix it in the web UI and delete the conflict copy.
 
-Each machine runs its own `/synthesize` schedule. No central server needed.
+---
 
-### Historical import (transcripts from another laptop)
+### First-time historical backfill
 
-If a machine has existing Claude Code sessions you want to synthesize:
-
-**Step 1 — Copy transcripts from the source machine:**
-```bash
-# On the source machine
-tar czf claude-sessions.tar.gz ~/.claude/projects/
-scp claude-sessions.tar.gz thishost:~/.claude/local-brain/import/laptop2.tar.gz
-```
-
-**Step 2 — Extract on this machine:**
-```bash
-mkdir -p ~/.claude/local-brain/import/laptop2
-tar xzf ~/.claude/local-brain/import/laptop2.tar.gz \
-    -C ~/.claude/local-brain/import/laptop2
-```
-
-**Step 3 — Queue for synthesis:**
-```bash
-python3 /path/to/plugins/local-brain/scripts/backfill.py \
-    ~/.claude/local-brain/import/laptop2
-
-# Preview without modifying:
-python3 scripts/backfill.py ~/.claude/local-brain/import/laptop2 --dry-run
-```
-
-**Step 4 — Synthesize:**
-```
-/synthesize
-```
-
-Notes land on the correct historical dates (dates come from transcript timestamps, not today).
-
-### Installing the plugin on a second machine
+If a leaf has months of accumulated sessions, use `/brain-backfill` on the server after Syncthing has finished copying the transcripts:
 
 ```bash
-# Clone the repo
+# Check sync progress on server
+ls ~/brain-sources/macbook/ | wc -l   # count transcripts received
+
+# Once synced, run interactive backfill:
+/brain-backfill
+# → choose ~/brain-sources/macbook as source
+# → start with last 90 days, batch of 25
+# → repeat for earlier dates
+```
+
+See `/brain-backfill` for the full guided workflow.
+
+### Installing the plugin on a new leaf machine
+
+```bash
 git clone https://github.com/fiale-plus/fiale-claude-plugins ~/repos/fiale-plus/fiale-claude-plugins
-
-# Register plugin in installed_plugins.json (same as step 2 of installation)
-# Then restart Claude Code and run:
-/brain-setup
+# Register in installed_plugins.json, restart Claude Code, then:
+/brain-setup   # creates local config
+/brain-role    # set as source, configure Syncthing folders
 ```
 
-If `~/brain/` is already synced via Syncthing, `/brain-setup` will detect the existing files and skip creating them — it just writes the local config.
+`/brain-setup` skips creating vault files that already exist — safe to run on a machine that already has `~/brain/` from Syncthing.
 
 ---
 

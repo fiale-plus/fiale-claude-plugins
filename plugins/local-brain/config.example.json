@@ -1,14 +1,15 @@
 {
   "vault_path": "/Users/yourname/brain",
   "role": "standalone",
+  "machine_name": "macbook",
 
   "// roles": "source | aggregator | standalone",
-  "// source": "capture sessions only — no local synthesis, vault receive-only",
-  "// aggregator": "synthesize sessions from this and other machines",
+  "// source": "capture sessions only — transcripts sync to aggregator via Syncthing",
+  "// aggregator": "receive transcripts from leaves, synthesize, write vault",
   "// standalone": "capture and synthesize on a single machine (default)",
 
-  "// aggregator only": "list of source machines to pull transcripts from",
-  "sources": [
-    { "host": "192.168.1.10", "user": "yourname", "name": "laptop2" }
-  ]
+  "// machine_name": "used as Syncthing folder label and brain-sources subdir name (source role)",
+
+  "// aggregator only": "path where Syncthing deposits received transcripts from leaves",
+  "sources_path": "/Users/yourname/brain-sources"
 }
