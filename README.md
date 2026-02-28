@@ -22,7 +22,9 @@ Plugins for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
 **Your world at a glance, without leaving the terminal.**
 
-Track PRs, calendar, Slack, stocks, and music — all surfaced in your Claude Code statusline. Alerts appear non-blocking; `/hub-ack` gives smart context-aware actions (merge PR, join meeting, reply to Slack).
+Track PRs, calendar, Slack, stocks, and music — all surfaced in your Claude Code statusline.
+
+Alerts appear non-blocking; `/hub-ack` gives smart context-aware actions (merge PR, join meeting, reply to Slack).
 
 ```
 /hub-setup          →  Configure statusline integration
