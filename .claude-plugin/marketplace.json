@@ -112,6 +112,27 @@
         "sound",
         "mood"
       ]
+    },
+    {
+      "name": "local-brain",
+      "description": "Auto-captures Claude Code sessions via Stop hook and synthesizes them into Obsidian vault notes — session summaries, decisions, learnings, and project history for retrospective self-improvement",
+      "version": "1.0.0",
+      "author": {
+        "name": "Pavel Fadeev",
+        "email": "pavel.fadeev@gmail.com"
+      },
+      "source": "./plugins/local-brain",
+      "category": "productivity",
+      "keywords": [
+        "obsidian",
+        "knowledge",
+        "second-brain",
+        "sessions",
+        "synthesis",
+        "retrospective",
+        "pkm",
+        "notes"
+      ]
     }
   ]
 }
