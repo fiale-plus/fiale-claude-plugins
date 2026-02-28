@@ -97,6 +97,8 @@ When starting a new project or major focus shift:
 | Command | What it does |
 |---------|--------------|
 | `/brain-setup` | First-time setup: vault structure, config, scheduling |
+| `/brain-role` | Set machine role (source / aggregator / standalone), configure sync direction and scheduling |
+| `/brain-schedule` | Install or remove synthesis/reflect scheduling (cron or launchd) |
 | `/synthesize` | Process pending transcripts → Obsidian session notes |
 | `/brain-reflect` | Weekly pattern synthesis → insight note + Polaris suggestions |
 | `/brain-backfill` | Import transcripts from another machine into the queue |
@@ -157,7 +159,25 @@ Each mechanism builds on the previous:
 
 ## Multi-machine setup
 
-### Ongoing use — Syncthing vault sync (recommended)
+### Machine roles
+
+Each machine in your fleet plays one of three roles:
+
+| Role | Captures | Synthesizes | Vault sync | Best for |
+|------|:--------:|:-----------:|:----------:|---------|
+| **source** | ✓ | — | Receive Only | workhorse laptops |
+| **aggregator** | — | ✓ | Send & Receive | always-on desktop or server |
+| **standalone** | ✓ | ✓ | Send & Receive | single-machine setup |
+
+Run `/brain-role` on each machine to configure its role. The command sets `config.json`, configures Syncthing direction, and wires up scheduling (or removes it for source machines).
+
+**Source machines** queue sessions silently via the Stop hook. The vault is receive-only — they read notes but never write them. The aggregator pulls their transcripts and does all synthesis.
+
+**Aggregator** runs `/synthesize` on a schedule, rsyncs transcripts from each source machine first, writes all vault notes. Other machines get the notes via Syncthing.
+
+**Standalone** is the simplest: one machine does everything. No rsync needed.
+
+### Syncthing vault sync (recommended)
 
 Install the plugin on each machine. Each machine independently captures sessions and writes to its local `~/brain/` copy. Syncthing keeps the vault identical across all machines with no cloud involvement — notes from laptop A appear on laptop B automatically.
 

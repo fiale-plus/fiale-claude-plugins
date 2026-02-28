@@ -1,4 +1,14 @@
 {
   "vault_path": "/Users/yourname/brain",
-  "synthesis_model": "claude-sonnet-4-6"
+  "role": "standalone",
+
+  "// roles": "source | aggregator | standalone",
+  "// source": "capture sessions only — no local synthesis, vault receive-only",
+  "// aggregator": "synthesize sessions from this and other machines",
+  "// standalone": "capture and synthesize on a single machine (default)",
+
+  "// aggregator only": "list of source machines to pull transcripts from",
+  "sources": [
+    { "host": "192.168.1.10", "user": "yourname", "name": "laptop2" }
+  ]
 }
