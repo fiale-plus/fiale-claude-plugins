@@ -2,7 +2,9 @@
 description: Synthesize pending Claude Code sessions into Obsidian vault notes
 ---
 
-Process all transcripts queued by the Stop hook and write structured notes to your Obsidian vault.
+Process pending transcripts and write structured notes to your Obsidian vault.
+
+**Batch limit**: process at most 20 sessions per run. If the queue is larger, process the first 20, then report how many remain. This prevents context exhaustion on large backlogs — run `/synthesize` again for the next batch.
 
 ## Steps
 
@@ -11,6 +13,9 @@ Process all transcripts queued by the Stop hook and write structured notes to yo
    Read `~/.claude/local-brain/config.json` and `~/.claude/local-brain/pending.json`.
 
    If `pending.json` is missing or empty, say "No pending sessions." and stop.
+
+   If the queue has more than 20 items, note: "Queue has N sessions — processing first 20. Run /synthesize again for the remainder."
+   Take only the first 20 paths as the working set for this run.
 
 2. **For each transcript path in the queue:**
 
@@ -75,11 +80,20 @@ Process all transcripts queued by the Stop hook and write structured notes to yo
 
    g. Report: "✓ `<project_name>` · <date> · <theme> · <outcome>"
 
-3. **Clear the queue**
+3. **Clear processed items from the queue**
 
-   After processing all transcripts (including skipped ones), write an empty array to `~/.claude/local-brain/pending.json`:
+   Remove only the transcripts that were processed in this run (the working set of up to 20). Leave any remaining items in place:
    ```bash
-   echo '[]' > ~/.claude/local-brain/pending.json
+   python3 -c "
+   import json
+   from pathlib import Path
+   q = Path.home() / '.claude/local-brain/pending.json'
+   processed = <list of paths processed this run as a Python list literal>
+   queue = json.loads(q.read_text()) if q.exists() else []
+   remaining = [p for p in queue if p not in set(processed)]
+   q.write_text(json.dumps(remaining, indent=2))
+   print(f'Removed {len(processed)} item(s), {len(remaining)} remain in queue')
+   "
    ```
 
 4. **Show scheduling recommendations**
