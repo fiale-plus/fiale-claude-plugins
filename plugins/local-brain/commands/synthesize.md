@@ -72,7 +72,45 @@ Process pending transcripts and write structured notes to your Obsidian vault. W
       rm /tmp/local-brain-synthesis.json
       ```
 
-   g. Report: "✓ `<project_name>` · <date> · <theme> · <outcome>"
+   g. Write a compact entry to the project's auto memory so future sessions on that project start with context about recent work:
+
+      Derive the memory path from the transcript path — the memory dir is the `memory/` subdirectory of the same project folder:
+      ```bash
+      python3 -c "
+      import json
+      from pathlib import Path
+      transcript = Path('<transcript_path>')
+      memory_dir = transcript.parent / 'memory'
+      memory_dir.mkdir(parents=True, exist_ok=True)
+      memory_path = memory_dir / 'MEMORY.md'
+      marker = '<!-- session:<session_id> -->'
+      existing = memory_path.read_text() if memory_path.exists() else ''
+      if marker in existing:
+          pass  # idempotent
+      else:
+          decisions = '<decisions_made as comma-separated string, or empty>'
+          learnings = '<learnings as comma-separated string, or empty>'
+          entry = f'{marker}\n**<date> · <project_name> · <primary_theme> · <outcome>**\n<summary>\n'
+          if decisions:
+              entry += f'Decisions: {decisions}\n'
+          if learnings:
+              entry += f'Learnings: {learnings}\n'
+          entry += f'Next: <suggested_next>\n\n'
+          header = existing.split('\n')[0] + '\n\n' if existing.startswith('#') else '# Session Memory\n\n'
+          body = existing[len(existing.split(chr(10))[0])+1:].lstrip() if existing.startswith('#') else existing
+          content = header + entry + body
+          # Trim to 180 lines — move overflow to sessions-history.md
+          lines = content.split(chr(10))
+          if len(lines) > 180:
+              overflow = chr(10).join(lines[180:])
+              hist = memory_dir / 'sessions-history.md'
+              hist.write_text((hist.read_text() if hist.exists() else '') + overflow)
+              content = chr(10).join(lines[:180])
+          memory_path.write_text(content)
+      "
+      ```
+
+   h. Report: "✓ `<project_name>` · <date> · <theme> · <outcome>"
 
 3. **Clear processed items from the queue**
 

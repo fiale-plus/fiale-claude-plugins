@@ -9,15 +9,18 @@ Auto-captures Claude Code sessions and synthesizes them into Obsidian vault note
 ```
 Claude Code session ends
   → Stop hook queues the transcript path       (automatic, <100ms)
+  → Claude auto memory runs                    (built-in, no config)
+      → Claude writes its own learnings to ~/.claude/projects/<slug>/memory/MEMORY.md
   → /synthesize processes the queue            (scheduled or manual)
       → reads transcript + top-of-mind.md
       → Claude synthesizes: summary, decisions, learnings, theme, alignment
       → writes ~/brain/_AI/sessions/YYYY-MM-DD.md
       → updates ~/brain/_AI/projects/<name>.md
+      → prepends compact entry to project MEMORY.md (backprop to next session)
   → /brain-reflect reads a week of sessions   (run weekly)
       → identifies patterns, wins, blockers
       → writes ~/brain/_AI/insights/YYYY-Www.md
-      → suggests Polaris updates
+      → suggests Polaris updates               (backprop to alignment signal)
 ```
 
 ---
@@ -145,13 +148,15 @@ That's it. No API keys — `/synthesize` uses Claude's own inference.
 
 Each mechanism builds on the previous:
 
-**Session level** (`_AI/sessions/`): every session captured — decisions, learnings, outcome, alignment signal. Searchable in Obsidian.
+**Auto memory** (`~/.claude/projects/<slug>/memory/`): Claude writes its own session learnings immediately on stop — no synthesis needed. Loaded into every future session on that project (first 200 lines). `/synthesize` also prepends a compact structured entry here after each synthesis run, so Claude always walks into a session knowing what was recently worked on.
+
+**Session level** (`_AI/sessions/`): every session synthesized — decisions, learnings, outcome, alignment signal. Human-readable, searchable in Obsidian.
 
 **Project level** (`_AI/projects/`): each project file prepends a new entry on every session. Over months it becomes a full history of how a project evolved — what was decided, what was learned, what got stuck.
 
 **Weekly level** (`_AI/insights/`): `/brain-reflect` reads a week of sessions and finds cross-session patterns. Recurring blockers surface. Theme distribution shows where time actually went vs where you thought it went. Durable learnings get extracted from the noise.
 
-**Polaris feedback loop**: `/brain-reflect` suggests specific edits to `top-of-mind.md` based on what you actually worked on. When you apply them, future session alignment assessments become more accurate. The system learns your actual priorities, not your stated ones.
+**Polaris feedback loop** (backpropagation): `/brain-reflect` suggests specific edits to `top-of-mind.md` based on what you actually worked on. When you apply them, future session alignment assessments become more accurate. The system learns your actual priorities, not your stated ones.
 
 **The compounding effect**: after 3–4 weeks, project notes have real history. After 2–3 months, insight notes reveal multi-week patterns. After a year, you have a searchable record of every significant decision and learning across all your work.
 
