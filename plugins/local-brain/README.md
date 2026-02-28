@@ -157,25 +157,72 @@ Each mechanism builds on the previous:
 
 ## Multi-machine setup
 
-### Ongoing use (recommended)
+### Ongoing use — Syncthing vault sync (recommended)
 
-Install the plugin on each machine. Each machine independently captures sessions and writes to its local vault copy. Syncthing keeps `~/brain/` identical across all machines — notes from laptop A appear on laptop B automatically.
+Install the plugin on each machine. Each machine independently captures sessions and writes to its local `~/brain/` copy. Syncthing keeps the vault identical across all machines with no cloud involvement — notes from laptop A appear on laptop B automatically.
 
+#### Install Syncthing
+
+**macOS:**
 ```bash
-# Install Syncthing on each machine
-brew install syncthing          # Mac
-sudo apt install syncthing      # Linux
-
-# Start it
-brew services start syncthing   # Mac
-systemctl --user enable --now syncthing  # Linux
-
-# Open web UI: http://127.0.0.1:8384
-# Add ~/brain/ as a shared folder on the first machine
-# Accept the share request on each other machine
+brew install syncthing
+brew services start syncthing   # runs in background, survives reboots
 ```
 
-Each machine runs its own `/synthesize` schedule. Notes sync via Syncthing. No central server needed.
+**Linux (systemd):**
+```bash
+sudo apt install syncthing      # or: snap install syncthing
+systemctl --user enable --now syncthing
+```
+
+**Linux (no systemd):**
+```bash
+syncthing &   # or add to ~/.profile / crontab @reboot
+```
+
+#### Configure the shared folder (do this once on the first machine)
+
+1. Open the web UI: **http://127.0.0.1:8384**
+2. Click **Add Folder**
+3. Set **Folder Path** to `~/brain` (the full path, e.g. `/Users/pavel/brain`)
+4. Give it a **Folder Label** like `brain`
+5. Leave **Folder ID** as-is (auto-generated) — you'll need it when adding other devices
+6. Click **Save**
+
+#### Add each additional machine as a device
+
+On **machine A** (already configured):
+1. Web UI → **Add Remote Device**
+2. Enter the **Device ID** from machine B (find it on machine B: web UI → Actions → Show ID, or run `syncthing --device-id`)
+3. Give it a name (e.g. `linux-laptop`)
+4. Click **Save**
+
+On **machine B** (new machine):
+1. Install and start Syncthing (see above)
+2. Open web UI → a notification appears: "Device X wants to connect" → click **Add Device**
+3. Another notification: "Device X wants to share folder brain" → click **Add** → set local path to `~/brain`
+4. Click **Save**
+
+Syncing starts immediately. Changes on any machine propagate to all others within seconds (when online) or on next connect (when offline).
+
+#### Verify sync is working
+
+```bash
+# On machine A: create a test file
+echo "sync test" > ~/brain/_AI/test-sync.md
+
+# On machine B (after a few seconds):
+cat ~/brain/_AI/test-sync.md   # should print "sync test"
+
+# Clean up
+rm ~/brain/_AI/test-sync.md
+```
+
+#### Conflict handling
+
+If the same file is edited on two machines while offline, Syncthing creates a conflict copy named `filename.sync-conflict-YYYYMMDD-HHMMSS-DEVICEID.md`. Since `/synthesize` writes to daily files and uses session ID markers for idempotency, conflicts are rare — two machines would have to synthesize different sessions into the same daily file simultaneously. If a conflict file appears, open both in Obsidian, merge manually, and delete the conflict copy.
+
+Each machine runs its own `/synthesize` schedule. No central server needed.
 
 ### Historical import (transcripts from another laptop)
 
