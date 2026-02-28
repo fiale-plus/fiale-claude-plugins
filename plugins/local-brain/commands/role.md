@@ -86,7 +86,7 @@ On the SERVER (accept the share request):
   Machine name: <name>
   Sessions queued via Stop hook → ~/.claude/local-brain/pending.json
   Transcripts sync: ~/.claude/projects → server:~/brain-sources/<name>/ (Send Only)
-  ~/brain on this machine: your personal vault (Polaris, manual notes, capture.py logs)
+  ~/brain on this machine: your personal vault (Polaris, manual notes)
   Scheduled synthesis: runs on the aggregator (server) only
   Manual synthesis: run /synthesize any time for a local casual run — writes to this machine's ~/brain
 ```
@@ -133,7 +133,7 @@ Tell the user to run `/brain-schedule` to set up synthesis scheduling.
 ```
 ✓ Role: aggregator
   Received transcripts: <sources_path>/<machine-name>/  (one dir per leaf)
-  Vault: ~/brain → all leaves via Syncthing (Send & Receive)
+  Vault: ~/brain on this machine only — no vault sync to leaves
   Next: run /brain-schedule to set up synthesis cron
   Synthesis will scan <sources_path>/ for new transcripts automatically.
 ```

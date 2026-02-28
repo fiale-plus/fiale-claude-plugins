@@ -1,14 +1,13 @@
 ---
-description: Set up Local Brain vault, config, and optional scheduling on this machine
+description: Set up Local Brain vault, config, role, and optional scheduling on this machine
 ---
 
-First-time setup for the local-brain plugin. Run this once on each machine.
+First-time setup for the local-brain plugin. Run once on each machine. Covers vault creation, config, machine role, Syncthing instructions, and scheduling in one flow.
 
 ## Steps
 
 ### 1. Detect environment
 
-Run:
 ```bash
 uname -s
 echo $HOME
@@ -20,18 +19,14 @@ Report OS (Darwin = macOS, Linux = Linux), home directory, Python version, and c
 
 ### 2. Ask for vault location
 
-Ask the user:
 > "Where should your Obsidian vault live? Default is `~/brain`. Press Enter to accept or type a path."
 
-If they press Enter or say "default", use `~/brain`. Expand `~` to the real home path.
+If they press Enter or say "default", use `~/brain`. Expand `~` to the real home path. Call this `VAULT_PATH`.
 
-Call this `VAULT_PATH`.
-
-### 3. Create vault folder structure
+### 3. Create vault structure
 
 ```bash
 mkdir -p VAULT_PATH/Polaris
-mkdir -p VAULT_PATH/Logs
 mkdir -p VAULT_PATH/Commonplace
 mkdir -p VAULT_PATH/Outputs
 mkdir -p VAULT_PATH/Utilities
@@ -104,80 +99,150 @@ This folder is written by the `local-brain` Claude Code plugin. Do not edit manu
 
 Report which files were created vs already existed.
 
-### 4. Write config
+### 4. Write initial config
 
 Check if `~/.claude/local-brain/config.json` exists.
 
-If it already exists, read it and show the current values. Ask:
+If it already exists, read it and show current values. Ask:
 > "Config already exists with vault_path=`<current>`. Update it? (y/N)"
 
-If new or updating, write:
+Write (or update) vault_path only for now — role will be added in the next step:
 ```bash
 mkdir -p ~/.claude/local-brain
 ```
-
 ```json
 {
   "vault_path": "VAULT_PATH"
 }
 ```
 
-Note: `synthesis_model` is intentionally omitted — the `/synthesize` command uses Claude's own inference, no model config needed.
+### 5. Register Obsidian vault
 
-### 5. Register Obsidian vault (macOS only)
-
-On macOS only, check if Obsidian's config exists:
+On macOS, check if Obsidian's config exists:
 ```bash
 ls ~/Library/Application\ Support/obsidian/obsidian.json 2>/dev/null
 ```
 
-If found, read it and check if `VAULT_PATH` is already registered. If not, tell the user:
-> "To register the vault in Obsidian: open Obsidian → 'Open folder as vault' → select `VAULT_PATH`. Or run: `open -a Obsidian VAULT_PATH`"
+If found, check if `VAULT_PATH` is already registered. If not:
+> "To open the vault in Obsidian: run `open -a Obsidian VAULT_PATH` or open Obsidian → Open folder as vault → select `VAULT_PATH`"
 
-On Linux, tell the user:
+On Linux:
 > "To open the vault in Obsidian: File → Open Folder as Vault → select `VAULT_PATH`"
 
-Don't modify obsidian.json directly — Obsidian manages it.
+Don't modify obsidian.json — Obsidian manages it.
 
-### 6. Verify plugin registration
+### 6. Ask machine role
 
-Check if `local-brain@fiale-claude-plugins` exists in `~/.claude/plugins/installed_plugins.json`:
-```bash
-python3 -c "
-import json
-from pathlib import Path
-f = Path.home() / '.claude/plugins/installed_plugins.json'
-d = json.loads(f.read_text()) if f.exists() else {}
-registered = 'local-brain@fiale-claude-plugins' in d.get('plugins', {})
-print('registered' if registered else 'not-registered')
-"
-```
+> "What role will this machine play?
+> 1. **standalone** — capture sessions and synthesize notes on this machine (single machine, simplest)
+> 2. **source** — capture sessions only; transcripts sync to an aggregator server via Syncthing
+> 3. **aggregator** — receive transcripts from leaf machines and synthesize (always-on server/desktop)"
 
-If not registered, print the entry they need to add and explain:
-> "Add this to `~/.claude/plugins/installed_plugins.json` under `plugins`, then restart Claude Code:"
+---
+
+#### If **standalone**:
+
+Update config:
 ```json
-"local-brain@fiale-claude-plugins": [{
-  "scope": "user",
-  "installPath": "/path/to/fiale-claude-plugins/plugins/local-brain",
-  "version": "1.0.0",
-  "installedAt": "<today>",
-  "lastUpdated": "<today>"
-}]
+{
+  "vault_path": "VAULT_PATH",
+  "role": "standalone"
+}
 ```
-Replace `/path/to/` with the actual clone location.
+
+Tell the user: "Standalone is the simplest setup — everything happens on this machine. No sync needed."
+
+→ Continue to **step 7** (scheduling).
+
+---
+
+#### If **source**:
+
+Ask:
+> "Short name for this machine (used as Syncthing folder label, e.g. `macbook`, `linux-work`):"
+
+Update config:
+```json
+{
+  "vault_path": "VAULT_PATH",
+  "role": "source",
+  "machine_name": "<name>"
+}
+```
+
+Print Syncthing setup instructions:
+```
+━━━ Syncthing — Transcripts (this machine → server) ━━━
+
+On THIS machine (http://127.0.0.1:8384):
+  Add Folder:
+    Path:        ~/.claude/projects
+    Label:       transcripts-<machine_name>
+    Folder ID:   transcripts-<machine_name>   ← set manually, must be unique
+    Sharing:     tick the server device
+    Advanced → Folder Type: Send Only
+
+On the SERVER (accept the share request):
+    Local path:  ~/brain-sources/<machine_name>
+    Advanced → Folder Type: Receive Only
+```
+
+Tell the user: "Synthesis runs on the aggregator, not here — no scheduling needed on this machine. You can still run /synthesize manually for a casual local run."
+
+→ Skip to **step 8** (summary).
+
+---
+
+#### If **aggregator**:
+
+Ask:
+> "Where should received transcripts be stored? Default: `~/brain-sources`"
+
+Update config:
+```json
+{
+  "vault_path": "VAULT_PATH",
+  "role": "aggregator",
+  "sources_path": "<sources_path>"
+}
+```
+
+Create the sources directory:
+```bash
+mkdir -p <sources_path>
+```
+
+Print Syncthing setup instructions:
+```
+━━━ Syncthing — Transcripts (leaves → this machine) ━━━
+
+Each leaf machine configures its own Send Only folder pointing here.
+On THIS machine, when a leaf sends a share request:
+  Accept → Local path: <sources_path>/<machine_name>
+  Advanced → Folder Type: Receive Only
+
+Run /brain-setup (or /brain-role) on each leaf to generate the correct
+share request. Each leaf's transcripts land in a separate subdir.
+```
+
+→ Continue to **step 7** (scheduling).
+
+---
 
 ### 7. Offer scheduling
 
-Ask:
+(Skipped for source machines — aggregator handles synthesis.)
+
 > "How would you like `/synthesize` to run automatically?
-> 1. macOS launchd (recommended on Mac — runs daily at 9am even without a terminal)
+> 1. macOS launchd (recommended on Mac — runs even without a terminal)
 > 2. cron (works on Mac and Linux)
-> 3. Shell alias only (run manually with `brain-sync`)
-> 4. Skip — I'll set it up later"
+> 3. Skip — I'll set it up later with /brain-schedule"
 
-**If launchd chosen (macOS):**
+**If launchd:**
 
-Get claude path: `which claude`
+```bash
+CLAUDE_PATH=$(which claude)
+```
 
 Write `~/Library/LaunchAgents/com.local-brain.synthesize.plist`:
 ```xml
@@ -199,43 +264,78 @@ Write `~/Library/LaunchAgents/com.local-brain.synthesize.plist`:
 </dict></plist>
 ```
 
-Then tell the user to run:
+Then run:
 ```bash
 launchctl load ~/Library/LaunchAgents/com.local-brain.synthesize.plist
 ```
 
-**If cron chosen:**
+**If cron:**
 
-Show the line to add via `crontab -e`:
+Add via `crontab -e`:
 ```
-0 9 * * * CLAUDE_PATH -p "/synthesize" >> HOME/.claude/local-brain/cron.log 2>&1
-```
-
-**If alias chosen:**
-
-Show what to add to `~/.zshrc` or `~/.bashrc`:
-```bash
-alias brain-sync='CLAUDE_PATH -p "/synthesize"'
+0 9 * * * CLAUDE_PATH -p "/synthesize" >> HOME/.claude/local-brain/cron.log 2>&1  # local-brain:synthesize
 ```
 
-**If skip:** Note that they can run `/synthesize` manually or re-run `/brain-setup` later.
+**If skip:** Note they can run `/brain-schedule` any time to add or change scheduling.
 
 ### 8. Summary
 
-Print a clean summary:
+Print a role-aware summary:
 
+**Standalone:**
 ```
-✓ Vault created at VAULT_PATH
-✓ Config written to ~/.claude/local-brain/config.json
-✓ Plugin registered (or: registration instructions shown above)
-✓ Scheduling: <chosen method>
+✓ local-brain ready on this machine
+
+  Vault:      VAULT_PATH
+  Role:       standalone (capture + synthesize here)
+  Config:     ~/.claude/local-brain/config.json
+  Scheduling: <chosen method>
 
 Next steps:
-1. Fill in ~/brain/Polaris/top-of-mind.md with your current focus
-2. End a Claude Code session — the Stop hook will queue it automatically
-3. Run /synthesize (or wait for scheduled run) to process it
-4. Open Obsidian → _AI/sessions/ to see your notes
+  1. Fill in VAULT_PATH/Polaris/top-of-mind.md with your current focus
+  2. End a Claude Code session — the Stop hook queues it automatically
+  3. Run /synthesize (or wait for scheduled run at 9am)
+  4. Open Obsidian → _AI/sessions/ to see your notes
 
-To bring in sessions from another machine: /brain-backfill
-To see weekly patterns: /brain-reflect (after a week of sessions)
+Weekly: /brain-reflect — patterns, wins, blockers across the week
+Historical backlog: /brain-backfill
+```
+
+**Source:**
+```
+✓ local-brain ready on this machine
+
+  Vault:      VAULT_PATH (personal notes — Polaris, manual entries)
+  Role:       source (capture here, synthesize on aggregator)
+  Machine:    <machine_name>
+  Config:     ~/.claude/local-brain/config.json
+
+Next steps:
+  1. Fill in VAULT_PATH/Polaris/top-of-mind.md with your current focus
+  2. Set up Syncthing using the instructions above
+  3. End a Claude Code session — the Stop hook queues it automatically
+  4. Verify transcripts are syncing: check ~/brain-sources/<machine_name>/ on the server
+
+To synthesize on this machine manually: /synthesize
+To change role later: /brain-role
+```
+
+**Aggregator:**
+```
+✓ local-brain ready on this machine
+
+  Vault:      VAULT_PATH (synthesized notes land here)
+  Role:       aggregator (receives transcripts from leaves, synthesizes)
+  Sources:    <sources_path>/
+  Config:     ~/.claude/local-brain/config.json
+  Scheduling: <chosen method>
+
+Next steps:
+  1. Set up Syncthing using the instructions above
+  2. Run /brain-setup (or /brain-role) on each leaf machine
+  3. Once transcripts are arriving: /synthesize to process them
+  4. Open Obsidian on this machine to see synthesized notes
+
+Historical backlog: /brain-backfill
+Weekly patterns: /brain-reflect
 ```
