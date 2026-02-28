@@ -163,33 +163,29 @@ Each mechanism builds on the previous:
 
 Each machine plays one of three roles:
 
-| Role | Captures sessions | Synthesizes | Transcripts | Vault |
-|------|:-----------------:|:-----------:|:-----------:|:-----:|
-| **source** | ✓ | — | Send Only → server | Receive Only |
-| **aggregator** | — | ✓ | Receive Only ← leaves | Send & Receive |
-| **standalone** | ✓ | ✓ | — | Send & Receive |
+| Role | Captures sessions | Synthesizes | Transcripts sync |
+|------|:-----------------:|:-----------:|:----------------:|
+| **source** | ✓ | — | Send Only → server |
+| **aggregator** | — | ✓ | Receive Only ← leaves |
+| **standalone** | ✓ | ✓ | — (local only) |
 
 Run `/brain-role` on each machine to configure its role.
+
+Each machine keeps its own independent `~/brain` vault. The server's `~/brain` is where synthesized notes land — open Obsidian there to see them. No vault sync between machines.
 
 ---
 
 ### Syncthing setup
 
-Two Syncthing folders, opposite directions:
+**One Syncthing folder, one direction:**
 
 ```
 Leaf machines (laptops)          Server (aggregator)
 ~/.claude/projects/  ──────────→  ~/brain-sources/<machine-name>/
                      Send Only      Receive Only
-
-~/brain/             ←──────────  ~/brain/
-Receive Only                       Send & Receive
 ```
 
-Transcripts flow **leaf → server** so the server can synthesize them.
-Vault notes flow **server → leaves** so synthesized notes appear everywhere.
-
-Each leaf gets its own named folder on the server (`~/brain-sources/macbook/`, `~/brain-sources/linux1/`, etc.) because Syncthing shared folders are per-pair and cannot merge multiple sources into one path.
+Transcripts flow **leaf → server** only. The server synthesizes and writes to its own `~/brain`. Each machine's `~/brain` stays independent.
 
 ---
 
@@ -241,26 +237,9 @@ Repeat for every leaf.
 3. **Advanced** tab → Folder Type: **Receive Only**
 4. Save
 
-Repeat steps 3 for each leaf, using a unique folder ID and subfolder name each time.
+Repeat for each leaf, using a unique folder ID and subfolder name each time.
 
-#### Step 4 — Share vault (server → all leaves)
-
-**On the server:**
-1. Web UI → **Add Folder**
-2. Folder Path: `~/brain`
-3. Folder Label: `brain-vault`
-4. Folder ID: `brain-vault`
-5. **Sharing** tab → tick all leaf devices
-6. Folder Type: **Send & Receive** (server writes, leaves read)
-7. Save
-
-**On each leaf:**
-1. Accept the share request for `brain-vault`
-2. Set local path to `~/brain`
-3. **Advanced** tab → Folder Type: **Receive Only**
-4. Save
-
-#### Step 5 — Configure the aggregator
+#### Step 4 — Configure the aggregator
 
 Tell `/brain-role` where received transcripts live so `backfill.py` knows where to scan:
 
@@ -288,16 +267,9 @@ claude -p "/synthesize"
 # On a leaf — end a Claude Code session, then check:
 ls ~/.claude/projects/ | tail -5
 
-# On the server (after a minute):
+# On the server (after Syncthing syncs):
 ls ~/brain-sources/macbook/ | tail -5   # transcripts should appear
-
-# On the leaf — check vault syncs back:
-ls ~/brain/_AI/sessions/   # notes from server should appear after /synthesize runs
 ```
-
-#### Conflict handling
-
-The vault is write-only from the server side — leaves are Receive Only and never write. This means vault conflicts cannot happen. If Syncthing reports a conflict file in `~/brain/`, it means a leaf's folder type was accidentally set to Send & Receive. Fix it in the web UI and delete the conflict copy.
 
 ---
 

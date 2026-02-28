@@ -6,15 +6,15 @@ Configure what this machine does in the local-brain pipeline. Run once per machi
 
 ## Roles
 
-| Role | Captures sessions | Synthesizes | Transcripts sync | Vault sync |
-|------|:-----------------:|:-----------:|:----------------:|:----------:|
-| **source** | ✓ | — | Send Only → server | Receive Only |
-| **aggregator** | — | ✓ | Receive Only ← leaves | Send & Receive |
-| **standalone** | ✓ | ✓ | — | Send & Receive |
+| Role | Captures sessions | Synthesizes | Transcripts sync |
+|------|:-----------------:|:-----------:|:----------------:|
+| **source** | ✓ | — | Send Only → server |
+| **aggregator** | — | ✓ | Receive Only ← leaves |
+| **standalone** | ✓ | ✓ | — (local only) |
 
-**Source**: a workhorse laptop. Sessions queue via Stop hook. Transcripts sync to the aggregator via Syncthing. Vault notes arrive from the aggregator (receive-only — this machine never writes notes).
+**Source**: a workhorse laptop. Sessions queue via Stop hook. Transcripts sync to the aggregator via Syncthing. No synthesis runs here. Each machine keeps its own independent `~/brain` — synthesized notes live on the server only.
 
-**Aggregator**: an always-on machine (server/desktop). Receives transcripts from all leaves, synthesizes them, writes vault notes. Leaves receive the notes via Syncthing.
+**Aggregator**: an always-on machine (server/desktop). Receives transcripts from all leaves, synthesizes them, writes to its own `~/brain`. Open Obsidian on the server to see the notes.
 
 **Standalone**: single machine does everything. No transcript sync needed.
 
@@ -63,9 +63,9 @@ If found, ask: "Remove existing synthesis scheduling from this machine? (Y/n)" �
 **Print Syncthing setup instructions for source:**
 
 ```
-Two Syncthing folders to configure on this machine:
+One Syncthing folder to configure on this machine:
 
-━━━ Folder 1: Transcripts (this machine → server) ━━━
+━━━ Transcripts (this machine → server) ━━━
 
 On THIS machine (http://127.0.0.1:8384):
   Add Folder:
@@ -78,23 +78,7 @@ On THIS machine (http://127.0.0.1:8384):
 On the SERVER (accept the share request):
     Local path:  ~/brain-sources/<machine_name>
     Advanced → Folder Type: Receive Only
-
-━━━ Folder 2: Vault (server → this machine) ━━━
-
-On the SERVER (if not already shared):
-  Add Folder:
-    Path:        ~/brain
-    Label:       brain-vault
-    Folder ID:   brain-vault
-    Sharing:     tick this machine
-    Folder Type: Send & Receive
-
-On THIS machine (accept the share request):
-    Local path:  ~/brain
-    Advanced → Folder Type: Receive Only
 ```
-
-Tell the user: "If the server has already shared the brain-vault folder with other devices, you'll just get a share request — accept it with Receive Only and point it to ~/brain."
 
 **Summary:**
 ```
@@ -102,7 +86,8 @@ Tell the user: "If the server has already shared the brain-vault folder with oth
   Machine name: <name>
   Sessions queued via Stop hook → ~/.claude/local-brain/pending.json
   Transcripts sync: ~/.claude/projects → server:~/brain-sources/<name>/ (Send Only)
-  Vault sync:       ~/brain ← server (Receive Only)
+  ~/brain on this machine: your personal vault (Polaris, manual notes) — untouched
+  Synthesized session notes live on the server's ~/brain only.
   No local synthesis or scheduling.
 ```
 
@@ -129,23 +114,9 @@ mkdir -p <sources_path>
 **Print Syncthing setup instructions for aggregator:**
 
 ```
-Two Syncthing folders to configure on the aggregator:
+One Syncthing folder per leaf to accept on this machine:
 
-━━━ Folder 1: Vault (this machine → all leaves) ━━━
-
-On THIS machine (http://127.0.0.1:8384):
-  Add Folder:
-    Path:        ~/brain
-    Label:       brain-vault
-    Folder ID:   brain-vault
-    Sharing:     tick each leaf device
-    Folder Type: Send & Receive
-
-On each LEAF (accept the share request):
-    Local path:  ~/brain
-    Advanced → Folder Type: Receive Only
-
-━━━ Folder 2: Transcripts (per leaf machine → this machine) ━━━
+━━━ Transcripts (leaves → this machine) ━━━
 
 For each leaf, the leaf creates its own Syncthing folder. On THIS machine:
   When you get a share request for "transcripts-<machine_name>":
@@ -153,6 +124,7 @@ For each leaf, the leaf creates its own Syncthing folder. On THIS machine:
     Advanced → Folder Type: Receive Only
 
 Run /brain-role on each leaf to generate the correct share request.
+Each leaf's transcripts land in a separate subdir — no conflicts possible.
 ```
 
 Tell the user to run `/brain-schedule` to set up synthesis scheduling.
