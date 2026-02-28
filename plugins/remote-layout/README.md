@@ -77,6 +77,8 @@ Auto-detection signals (best-effort, not guaranteed):
 
 ## Install
 
-```
+```bash
+/plugin marketplace add fiale-plus/fiale-claude-plugins
 /plugin install remote-layout
+/remote-layout watch
 ```
