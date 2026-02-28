@@ -139,13 +139,14 @@ Plays a short musical phrase whenever Claude finishes a task or needs your atten
 
 **Mobile-friendly responses for Claude Code remote control sessions.**
 
-Switch Claude's response format for small screens. Three modes: `code` (hard 28-char lines), `code-wrap` (zoom-mode autowrap), `watch` (ultra-terse with one-tap numbered replies). Persists across sessions.
+Switch Claude's response format for small screens. Persists across sessions via `/remote-layout <mode>`.
 
 | Mode | Description |
 |------|-------------|
 | `code` | Fenced code block, 28-char lines — tight monospace |
 | `code-wrap` | Fenced code block, no line limit — zoom-mode autowrap |
 | `watch` | Ultra-terse, always ends with 3 numbered REPLY options |
+| `off` | Disable, restore normal formatting |
 
 **Install:**
 ```bash
