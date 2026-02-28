@@ -48,6 +48,7 @@ with an exponential decay envelope and gentle legato overlap between notes. Outp
 ## Installation
 
 ```bash
+/plugin marketplace add fiale-plus/fiale-claude-plugins
 /plugin install vibes
 ```
 
