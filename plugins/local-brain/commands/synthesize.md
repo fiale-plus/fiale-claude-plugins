@@ -74,7 +74,10 @@ Process pending transcripts and write structured notes to your Obsidian vault. W
 
    g. Write a compact entry to the project's auto memory so future sessions on that project start with context about recent work:
 
-      Derive the memory path from the transcript path — the memory dir is the `memory/` subdirectory of the same project folder:
+      Derive the memory path from the transcript path — the memory dir is the `memory/` subdirectory of the same project folder.
+
+      **Before running the snippet below, substitute every `<placeholder>` with the actual value from step 2e.** The snippet must be valid Python when executed — do not leave any angle-bracket tokens in place.
+
       ```bash
       python3 -c "
       import json

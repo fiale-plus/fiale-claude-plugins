@@ -42,9 +42,10 @@ Workflow for importing from another machine:
 """
 import argparse
 import json
+import re
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -70,7 +71,6 @@ def load_queue() -> list:
 
 def find_synthesized_ids(vault_path: str) -> set:
     """Scan vault session notes for already-synthesized session IDs."""
-    import re
     sessions_dir = Path(vault_path) / "_AI" / "sessions"
     ids = set()
     if not sessions_dir.exists():
@@ -101,8 +101,9 @@ def get_transcript_date(path: Path) -> datetime | None:
     return None
 
 
-def count_user_messages(path: Path) -> int:
-    """Count human-typed user messages (not tool results)."""
+def get_transcript_info(path: Path) -> tuple[datetime | None, int]:
+    """Read first timestamp and count user messages in a single pass."""
+    first_ts = None
     count = 0
     try:
         with open(path) as f:
@@ -112,24 +113,34 @@ def count_user_messages(path: Path) -> int:
                     continue
                 try:
                     entry = json.loads(line)
+                    if first_ts is None:
+                        ts_str = entry.get("timestamp")
+                        if ts_str:
+                            try:
+                                first_ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                            except ValueError:
+                                pass
                     msg = entry.get("message", {})
-                    if not isinstance(msg, dict) or msg.get("role") != "user":
-                        continue
-                    content = msg.get("content", "")
-                    if isinstance(content, str) and content.strip():
-                        count += 1
-                    elif isinstance(content, list):
-                        # Only count if has text blocks (not just tool_results)
-                        has_text = any(
-                            c.get("type") == "text" and c.get("text", "").strip()
-                            for c in content if isinstance(c, dict)
-                        )
-                        if has_text:
+                    if isinstance(msg, dict) and msg.get("role") == "user":
+                        content = msg.get("content", "")
+                        if isinstance(content, str) and content.strip():
                             count += 1
+                        elif isinstance(content, list):
+                            if any(
+                                c.get("type") == "text" and c.get("text", "").strip()
+                                for c in content if isinstance(c, dict)
+                            ):
+                                count += 1
                 except json.JSONDecodeError:
                     continue
     except OSError:
         pass
+    return first_ts, count
+
+
+def count_user_messages(path: Path) -> int:
+    """Count human-typed user messages (not tool results)."""
+    _, count = get_transcript_info(path)
     return count
 
 
@@ -163,9 +174,7 @@ def main():
 
     since_date = datetime.fromisoformat(args.since).replace(tzinfo=timezone.utc) if args.since else None
     until_date = datetime.fromisoformat(args.until).replace(tzinfo=timezone.utc) if args.until else None
-    # until is inclusive end of day
     if until_date:
-        from datetime import timedelta
         until_date = until_date.replace(hour=23, minute=59, second=59)
 
     config = load_config()
@@ -191,14 +200,13 @@ def main():
     print(f"Found {len(all_transcripts)} transcript file(s)")
 
     if args.stats:
-        # Show distribution by month and filter preview
         by_month: dict[str, int] = defaultdict(int)
         skippable = 0
         unreadable = 0
         already_done = 0
 
         for t in all_transcripts:
-            ts = get_transcript_date(t)
+            ts, msg_count = get_transcript_info(t)
             if ts is None:
                 unreadable += 1
                 continue
@@ -206,7 +214,7 @@ def main():
             by_month[month] += 1
             if t.stem in synthesized_ids or str(t) in existing_queue_set:
                 already_done += 1
-            elif count_user_messages(t) < args.min_messages:
+            elif msg_count < args.min_messages:
                 skippable += 1
 
         print(f"\nDistribution by month:")
@@ -264,9 +272,9 @@ def main():
     # Sort oldest-first so history builds in order
     candidates.sort(key=lambda x: x[0])
 
-    to_add = [path for _, path in candidates]
-    if args.limit:
-        to_add = to_add[:args.limit]
+    # Slice to limit, keeping timestamps for display (no re-reads needed)
+    limited = candidates[:args.limit] if args.limit else candidates
+    to_add = [path for _, path in limited]
 
     print(f"\nFilter results:")
     print(f"  Already done:        {skipped_done}")
@@ -275,23 +283,21 @@ def main():
     print(f"  Unreadable:          {unreadable}")
     print(f"  Eligible:            {len(candidates)}")
     print(f"  Queuing:             {len(to_add)}"
-          + (f" (limited from {len(candidates)})" if args.limit and len(candidates) > args.limit else ""))
+          + (f" (limited from {len(candidates)})" if args.limit and len(candidates) > len(to_add) else ""))
 
     if not to_add:
         print("\nNothing to add.")
         return
 
-    if to_add:
-        first_ts = get_transcript_date(Path(to_add[0]))
-        last_ts = get_transcript_date(Path(to_add[-1]))
-        print(f"  Date range:          {first_ts.strftime('%Y-%m-%d') if first_ts else '?'}"
-              f" → {last_ts.strftime('%Y-%m-%d') if last_ts else '?'}")
+    first_ts, _ = limited[0]
+    last_ts, _ = limited[-1]
+    print(f"  Date range:          {first_ts.strftime('%Y-%m-%d')}"
+          f" → {last_ts.strftime('%Y-%m-%d')}")
 
     if args.dry_run:
         print("\n[dry-run] Would queue:")
-        for p in to_add[:10]:
-            ts = get_transcript_date(Path(p))
-            print(f"  {ts.strftime('%Y-%m-%d') if ts else '?':12s}  {Path(p).name}")
+        for ts, p in limited[:10]:
+            print(f"  {ts.strftime('%Y-%m-%d'):12s}  {Path(p).name}")
         if len(to_add) > 10:
             print(f"  ... and {len(to_add) - 10} more")
         remaining = len(candidates) - len(to_add)

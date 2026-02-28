@@ -215,13 +215,14 @@ def write_session_note(vault_path, session_id, project_name, synthesis, session_
     note_path.write_text(content)
 
 
-def upsert_project_note(vault_path, project_name, synthesis, session_date):
+def upsert_project_note(vault_path, project_name, session_id, synthesis, session_date):
     projects_dir = Path(vault_path) / "_AI" / "projects"
     projects_dir.mkdir(parents=True, exist_ok=True)
 
     safe_name = re.sub(r"[^\w\-]", "-", project_name).strip("-")
     note_path = projects_dir / f"{safe_name}.md"
 
+    marker = f"<!-- session:{session_id} -->"
     date_str = session_date.strftime("%Y-%m-%d %H:%M")
     summary = synthesis.get("summary", "")
     suggested_next = synthesis.get("suggested_next", "")
@@ -229,6 +230,7 @@ def upsert_project_note(vault_path, project_name, synthesis, session_date):
     theme = synthesis.get("primary_theme", "unknown")
 
     entry = (
+        f"{marker}\n"
         f"## {date_str} ({theme} · {outcome})\n\n"
         f"{summary}\n\n"
         f"**Next:** {suggested_next}\n\n"
@@ -237,6 +239,8 @@ def upsert_project_note(vault_path, project_name, synthesis, session_date):
 
     if note_path.exists():
         existing = note_path.read_text()
+        if marker in existing:
+            return  # idempotent
         if existing.startswith("# "):
             header_end = existing.index("\n") + 1
             content = existing[:header_end] + "\n" + entry + existing[header_end:]
@@ -270,7 +274,7 @@ def main():
     project_name = project_name_from_slug(project_slug, index_entry.get("projectPath", ""))
 
     write_session_note(vault_path, session_id, project_name, synthesis, session_date, message_count)
-    upsert_project_note(vault_path, project_name, synthesis, session_date)
+    upsert_project_note(vault_path, project_name, session_id, synthesis, session_date)
     log(f"OK: {session_id} → {session_date.strftime('%Y-%m-%d')} · {project_name} · {synthesis.get('primary_theme', '?')} · {synthesis.get('outcome', '?')}")
     print(f"Written: {session_date.strftime('%Y-%m-%d')} · {project_name}")
 
