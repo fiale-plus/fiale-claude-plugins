@@ -2,7 +2,7 @@
 description: Synthesize pending Claude Code sessions into Obsidian vault notes
 ---
 
-Process pending transcripts and write structured notes to your Obsidian vault.
+Process pending transcripts and write structured notes to your Obsidian vault. Works on any machine — standalone, leaf (source), or aggregator — as long as `pending.json` has entries.
 
 **Batch limit**: process at most 20 sessions per run. If the queue is larger, process the first 20, then report how many remain. This prevents context exhaustion on large backlogs — run `/synthesize` again for the next batch.
 
@@ -21,13 +21,7 @@ Process pending transcripts and write structured notes to your Obsidian vault.
 
    a. Read `~/.claude/local-brain/config.json` to get `vault_path` (default: `~/brain`) and confirm it exists.
 
-   b. Run:
-      ```bash
-      python3 ${CLAUDE_PLUGIN_ROOT}/bin/synthesize.py --parse-only <transcript_path>
-      ```
-      to extract: session_id, project_name, user_messages, session_date, message_count, first_prompt, git_branch.
-
-      Actually: call the parse function directly via a short inline Python snippet:
+   b. Extract transcript metadata via inline Python:
       ```bash
       python3 -c "
       import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/bin')

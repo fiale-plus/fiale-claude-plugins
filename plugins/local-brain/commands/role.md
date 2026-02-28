@@ -12,7 +12,7 @@ Configure what this machine does in the local-brain pipeline. Run once per machi
 | **aggregator** | — | ✓ | Receive Only ← leaves |
 | **standalone** | ✓ | ✓ | — (local only) |
 
-**Source**: a workhorse laptop. Sessions queue via Stop hook. Transcripts sync to the aggregator via Syncthing. No synthesis runs here. Each machine keeps its own independent `~/brain` — synthesized notes live on the server only.
+**Source**: a workhorse laptop. Sessions queue via Stop hook. Transcripts sync to the aggregator via Syncthing. No synthesis scheduled here — the aggregator handles it. You can still run `/synthesize` manually on a source machine for a local casual run; notes land in that machine's own `~/brain` (independent from the server's vault).
 
 **Aggregator**: an always-on machine (server/desktop). Receives transcripts from all leaves, synthesizes them, writes to its own `~/brain`. Open Obsidian on the server to see the notes.
 
@@ -86,9 +86,9 @@ On the SERVER (accept the share request):
   Machine name: <name>
   Sessions queued via Stop hook → ~/.claude/local-brain/pending.json
   Transcripts sync: ~/.claude/projects → server:~/brain-sources/<name>/ (Send Only)
-  ~/brain on this machine: your personal vault (Polaris, manual notes) — untouched
-  Synthesized session notes live on the server's ~/brain only.
-  No local synthesis or scheduling.
+  ~/brain on this machine: your personal vault (Polaris, manual notes, capture.py logs)
+  Scheduled synthesis: runs on the aggregator (server) only
+  Manual synthesis: run /synthesize any time for a local casual run — writes to this machine's ~/brain
 ```
 
 ---
