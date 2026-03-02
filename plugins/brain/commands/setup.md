@@ -1,4 +1,5 @@
 ---
+name: brain-setup
 description: Set up Brain plugin — personal vault, auto-synthesize, surface hints, and optional team vault
 ---
 

@@ -1,4 +1,5 @@
 ---
+name: brain-team-setup
 description: Initialize or update team vault settings — git-backed shared knowledge vault
 ---
 

@@ -1,4 +1,5 @@
 ---
+name: brain-search
 description: Search personal atoms and team vault for relevant knowledge
 args: query (optional — keyword or phrase to search)
 ---

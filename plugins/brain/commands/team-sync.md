@@ -1,4 +1,5 @@
 ---
+name: brain-team-sync
 description: Sync team vault — git pull latest changes and optionally push local commits
 ---
 

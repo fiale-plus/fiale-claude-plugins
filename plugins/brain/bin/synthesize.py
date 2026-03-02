@@ -193,7 +193,7 @@ def format_session_block(session_id, project_name, knowledge_data, session_date,
 
 
 def write_session_note(vault_path, session_id, project_name, knowledge_data, session_date, message_count):
-    sessions_dir = Path(vault_path) / "_sessions"
+    sessions_dir = Path(vault_path).expanduser() / "_sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
 
     date_str = session_date.strftime("%Y-%m-%d")
@@ -284,7 +284,7 @@ def upsert_atom(vault_path: str, title: str, content: str, tags: list[str], sess
     Create or upsert a personal atom in ~/brain/atoms/<slug>.md.
     Increments reference_count and updates validated_at on update.
     """
-    atoms_dir = Path(vault_path) / "atoms"
+    atoms_dir = Path(vault_path).expanduser() / "atoms"
     atoms_dir.mkdir(parents=True, exist_ok=True)
 
     slug = title_to_slug(title)

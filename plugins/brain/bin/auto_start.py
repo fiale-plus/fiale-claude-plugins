@@ -30,9 +30,9 @@ config = load_config()
 if not config:
     sys.exit(0)  # not configured yet
 
-# Spawn synthesize if pending queue non-empty and not run recently
+# Spawn synthesize if pending queue non-empty, auto_synthesize enabled, and not run recently
 pending = load_queue()
-if pending:
+if pending and config.get("auto_synthesize", True):
     last_synth = config.get("last_synthesis_at", "")
     should_run = True
     if last_synth:

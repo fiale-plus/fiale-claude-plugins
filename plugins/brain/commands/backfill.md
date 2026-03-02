@@ -1,4 +1,5 @@
 ---
+name: brain-backfill
 description: Import and queue historical Claude Code sessions for synthesis
 args: options (optional — passed to backfill.py)
 ---

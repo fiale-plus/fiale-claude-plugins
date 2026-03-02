@@ -1,4 +1,5 @@
 ---
+name: brain-reflect
 description: Weekly pattern synthesis — reads recent session notes and extracts wins, blockers, themes, and suggested Polaris updates
 ---
 

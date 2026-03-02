@@ -1,4 +1,5 @@
 ---
+name: brain-align
 description: Review and update project .brain/ docs — decisions, gotchas, patterns — for the current project
 ---
 

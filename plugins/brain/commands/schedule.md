@@ -1,4 +1,5 @@
 ---
+name: brain-schedule
 description: Install or remove brain scheduling (synthesize, reflect) via cron or launchd
 ---
 

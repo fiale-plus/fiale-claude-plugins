@@ -1,4 +1,5 @@
 ---
+name: brain-team-push
 description: Manually promote a personal atom or insight to the team vault
 args: slug (optional — atom slug to promote)
 ---

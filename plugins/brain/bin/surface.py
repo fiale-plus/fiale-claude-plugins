@@ -65,6 +65,6 @@ for atom in index:
 
 if best_match:
     slug = best_match["slug"]
-    print(f"[Brain] Related atom: {slug} ({best_score} keyword matches) — ~/brain/atoms/{slug}.md")
+    print(f"[Brain] Related atom: {slug} ({best_score} keyword matches) — {best_match['path']}")
 
 sys.exit(0)
