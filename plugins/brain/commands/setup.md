@@ -199,20 +199,58 @@ h. Update config with team settings:
 i. Obsidian: print instruction to register team vault:
    > "In Obsidian: Open folder as vault → `~/brain-team`"
 
-### 8. Obsidian vault registration
+### 8. Obsidian integration
 
-On macOS, check if Obsidian is installed:
+**Check if Obsidian is installed:**
+
 ```bash
+# macOS
 ls ~/Library/Application\ Support/obsidian/obsidian.json 2>/dev/null && echo "found" || echo "not found"
+# Linux
+ls ~/.config/obsidian/obsidian.json 2>/dev/null && echo "found" || echo "not found"
 ```
 
-If found:
-> "To open the vault in Obsidian: `open -a Obsidian VAULT_PATH` or open Obsidian → Open folder as vault → select `VAULT_PATH`"
+**If not found**, recommend installing:
+> "Obsidian is not installed. Brain works without it, but Obsidian gives you a rich vault UI with graph view, backlinks, and search.
+>
+> Install: https://obsidian.md
+>
+> After installing: Open Obsidian → Open folder as vault → `VAULT_PATH`"
 
-On Linux:
-> "In Obsidian: File → Open Folder as Vault → select `VAULT_PATH`"
+**If found**, print:
+> "Open Obsidian → Open folder as vault → `VAULT_PATH`"
+> (macOS shortcut: `open -a Obsidian VAULT_PATH`)
 
-Don't modify obsidian.json — Obsidian manages it.
+Don't modify obsidian.json — Obsidian manages its own vault registry.
+
+**Check if Obsidian CLI is enabled:**
+
+```bash
+which obsidian 2>/dev/null && echo "cli-available" || echo "cli-not-found"
+```
+
+**If CLI not found**, print:
+> "Enable the Obsidian CLI to get richer `/brain-search` (full-text vault search with backlinks):
+>
+> 1. Open Obsidian → Settings → General → toggle on **Enable CLI**
+> 2. Reopen your terminal (or run: `hash -r`)
+>
+> Also install the obsidian-skills Claude plugin for Obsidian automation:
+>
+> `/plugin install obsidian-skills`"
+
+**If CLI found**, verify the vault is accessible:
+
+```bash
+VAULT_NAME=$(basename VAULT_PATH)
+obsidian vault="$VAULT_NAME" read file="top-of-mind" 2>/dev/null && echo "vault-ok" || echo "vault-not-registered"
+```
+
+If `vault-ok`:
+> "Obsidian CLI ready. Vault is accessible — `/brain-search` will use Obsidian full-text search."
+
+If `vault-not-registered`:
+> "Obsidian CLI found but vault not yet registered. Open Obsidian → Open folder as vault → `VAULT_PATH`, then the CLI will find it."
 
 ### 9. Scheduling for /brain-reflect
 

@@ -19,29 +19,40 @@ If no query was provided as argument, ask:
 
 Call this `QUERY`.
 
-### 2. Search personal atoms
+### 2. Detect Obsidian CLI
 
-**Option A — using obsidian-cli if available:**
 ```bash
-which obsidian-cli 2>/dev/null && obsidian-cli search --vault ~/brain/atoms "<QUERY>" 2>/dev/null
+which obsidian 2>/dev/null && echo "cli-available" || echo "cli-not-found"
 ```
 
-**Option B — grep fallback (always works):**
+Store result as `HAS_OBSIDIAN_CLI`. Use CLI when available; fall back to grep + atoms-index otherwise.
+
+### 3. Search personal atoms
+
+**If `HAS_OBSIDIAN_CLI`:**
 ```bash
-grep -rl "<QUERY>" ~/brain/atoms/ 2>/dev/null
+VAULT_NAME=$(basename <vault_path>)
+obsidian vault="$VAULT_NAME" search query="<QUERY>" limit=20 2>/dev/null
 ```
 
-For each matching file, read it:
+If that returns results, read any matching files for full content. If the CLI errors or returns nothing, fall through to grep.
+
+**Grep fallback (always works):**
 ```bash
-cat <atom_path>
+grep -ril "<QUERY>" <vault_path>/atoms/ 2>/dev/null
 ```
 
-Also check atoms-index for keyword matches:
+For each matching file, read it.
+
+**Also score via atoms-index** (fast keyword match, works regardless of CLI):
 ```bash
 python3 -c "
 import json, re
 from pathlib import Path
-index = json.loads(Path.home().joinpath('.claude/brain/atoms-index.json').read_text())
+index_path = Path.home() / '.claude/brain/atoms-index.json'
+if not index_path.exists():
+    exit()
+index = json.loads(index_path.read_text())
 query_words = set(re.findall(r'[a-z][a-z0-9_-]{2,}', '<QUERY>'.lower()))
 results = []
 for atom in index:
@@ -54,11 +65,21 @@ for score, slug, path, rc in results[:10]:
 "
 ```
 
-### 3. Search team vault (if enabled)
+Merge results from CLI/grep and atoms-index, deduplicate by path, sort by relevance.
+
+### 4. Search team vault (if enabled)
 
 Check config for `team.enabled`. If true:
+
+**If `HAS_OBSIDIAN_CLI` and team vault is registered as an Obsidian vault:**
 ```bash
-grep -rl "<QUERY>" ~/brain-team/ 2>/dev/null
+TEAM_VAULT_NAME=$(basename <team_vault_path>)
+obsidian vault="$TEAM_VAULT_NAME" search query="<QUERY>" limit=20 2>/dev/null
+```
+
+**Grep fallback:**
+```bash
+grep -ril "<QUERY>" <team_vault_path>/ 2>/dev/null
 ```
 
 For each matching file, read it.

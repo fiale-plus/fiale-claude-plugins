@@ -11,7 +11,7 @@ Plugins for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 |--------|-------------|
 | [Status Hub](#status-hub) | Track PRs, calendar, Slack, stocks, music in your statusline |
 | [TradingView](#tradingview) | AI-powered market screening via 75+ indicators |
-| [local-brain](#local-brain) | Auto-capture sessions into a compounding Obsidian vault |
+| [Brain](#brain) | Three-layer knowledge capture: project docs, personal vault, optional team vault |
 | [mdbrowser](#mdbrowser) | Browse any URL as clean markdown |
 | [Vibes](#vibes) | Sentiment-driven musical phrases on task completion |
 | [Remote Layout](#remote-layout) | Mobile-friendly response formatting for remote sessions |
@@ -76,20 +76,27 @@ Screen stocks, forex, crypto, and ETFs using TradingView's 75+ fundamental and t
 
 ---
 
-## local-brain
+## Brain
 
-**Every Claude Code session, synthesized into a compounding Obsidian vault.**
+**Sessions become structured knowledge — in your repo, your vault, your team.**
 
-Auto-captures transcripts on session end (zero manual steps), synthesizes them into structured Obsidian notes — summaries, decisions, learnings, alignment signal. Weekly reflections surface patterns across sessions. Knowledge compounds automatically over time.
+Every Claude Code session is automatically queued on stop and synthesized into three layers: project decisions/gotchas/patterns committed inside the repo (visible to any engineer or AI), personal atoms in an Obsidian vault, and an optional git-backed team vault shared across teammates. Knowledge is auto-loaded into Claude via CLAUDE.md `@imports` — no manual steps.
+
+```
+Stop hook    → queues transcript to pending.json
+New session  → auto-synthesizes pending (background, non-blocking)
+              → git pull team vault (fast-forward, silent)
+PreToolUse   → surfaces relevant atoms as inline hints
+```
 
 **Install:**
 ```bash
 /plugin marketplace add fiale-plus/fiale-claude-plugins
-/plugin install local-brain
+/plugin install brain
 /brain-setup
 ```
 
-→ [Full documentation](plugins/local-brain)
+→ [Full documentation](plugins/brain)
 
 ---
 
