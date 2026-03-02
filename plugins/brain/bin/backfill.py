@@ -34,25 +34,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-
-QUEUE_PATH = Path.home() / ".claude" / "brain" / "pending.json"
-CONFIG_PATH = Path.home() / ".claude" / "brain" / "config.json"
-
-
-def load_config() -> dict:
-    if CONFIG_PATH.exists():
-        with open(CONFIG_PATH) as f:
-            return json.load(f)
-    return {}
-
-
-def load_queue() -> list:
-    if QUEUE_PATH.exists():
-        try:
-            return json.loads(QUEUE_PATH.read_text())
-        except (json.JSONDecodeError, OSError):
-            pass
-    return []
+sys.path.insert(0, str(Path(__file__).parent))
+from brain_lib import CONFIG_PATH, QUEUE_PATH, load_config, load_queue
 
 
 def find_synthesized_ids(vault_path: str) -> set:

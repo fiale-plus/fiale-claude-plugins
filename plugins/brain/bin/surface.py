@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 surface.py — Brain PreToolUse hook
-Keyword-matches atoms index against user message. Outputs a hint if ≥2 keywords
+Keyword-matches atoms index against tool input. Outputs a hint if ≥2 keywords
 match and the atom was validated within 180 days. Silent otherwise.
 Fast: no Claude calls, <1 second.
 """
@@ -11,20 +11,10 @@ import sys
 from datetime import date, datetime
 from pathlib import Path
 
-ATOMS_INDEX_PATH = Path.home() / ".claude" / "brain" / "atoms-index.json"
-CONFIG_PATH = Path.home() / ".claude" / "brain" / "config.json"
+sys.path.insert(0, str(Path(__file__).parent))
+from brain_lib import ATOMS_INDEX_PATH, load_config
+
 MAX_AGE_DAYS = 180
-
-
-def load_config() -> dict:
-    if CONFIG_PATH.exists():
-        try:
-            with open(CONFIG_PATH) as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            pass
-    return {}
-
 
 try:
     data = json.load(sys.stdin)
@@ -52,7 +42,6 @@ if isinstance(tool_input, dict):
 if not text_to_search:
     sys.exit(0)
 
-# Extract keywords from the current tool input
 words = set(re.findall(r"\b[a-z][a-z0-9_-]{2,}\b", text_to_search.lower()))
 
 today = date.today()
@@ -60,26 +49,22 @@ best_match = None
 best_score = 0
 
 for atom in index:
-    # Check age
     validated_at = atom.get("validated_at", "")
     if validated_at:
         try:
             va_date = datetime.strptime(validated_at, "%Y-%m-%d").date()
-            age_days = (today - va_date).days
-            if age_days > MAX_AGE_DAYS:
+            if (today - va_date).days > MAX_AGE_DAYS:
                 continue
         except ValueError:
             pass
 
-    atom_keywords = set(atom.get("keywords", []))
-    score = len(words & atom_keywords)
+    score = len(words & set(atom.get("keywords", [])))
     if score >= 2 and score > best_score:
         best_score = score
         best_match = atom
 
 if best_match:
     slug = best_match["slug"]
-    # Output as a hint comment visible in the session
     print(f"[Brain] Related atom: {slug} ({best_score} keyword matches) — ~/brain/atoms/{slug}.md")
 
 sys.exit(0)

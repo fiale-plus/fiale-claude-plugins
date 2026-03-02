@@ -30,26 +30,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-
-# ── Config ────────────────────────────────────────────────────────────────────
-
-CONFIG_PATH = Path.home() / ".claude" / "brain" / "config.json"
-LOG_PATH = Path.home() / ".claude" / "brain" / "synthesize.log"
-ATOMS_INDEX_PATH = Path.home() / ".claude" / "brain" / "atoms-index.json"
-
-
-def load_config() -> dict:
-    if CONFIG_PATH.exists():
-        with open(CONFIG_PATH) as f:
-            return json.load(f)
-    return {}
-
-
-def log(msg: str):
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open(LOG_PATH, "a") as f:
-        f.write(f"[{ts}] {msg}\n")
+sys.path.insert(0, str(Path(__file__).parent))
+from brain_lib import ATOMS_INDEX_PATH, CONFIG_PATH, load_config, log
 
 
 # ── Transcript parsing ─────────────────────────────────────────────────────────
@@ -115,11 +97,7 @@ def parse_transcript(path: str) -> tuple[str, str, list[str], datetime]:
     if len(user_messages) <= 5:
         selected = user_messages
     else:
-        seen = []
-        for m in user_messages[:3] + user_messages[-2:]:
-            if m not in seen:
-                seen.append(m)
-        selected = seen
+        selected = list(dict.fromkeys(user_messages[:3] + user_messages[-2:]))
 
     return session_id, project_slug, selected, session_date
 
@@ -281,7 +259,10 @@ def update_project_claude_md(project_root: str):
 
     if claude_md_path.exists():
         existing = claude_md_path.read_text()
-        # Replace existing managed block
+        # Guard against malformed partial block (opening tag without closing)
+        if "<!-- brain managed -->" in existing and "<!-- end brain managed -->" not in existing:
+            log(f"update_project_claude_md: malformed brain block in {claude_md_path}, skipping")
+            return
         new_content = re.sub(
             r"<!-- brain managed -->.*?<!-- end brain managed -->",
             managed_block,
@@ -354,7 +335,7 @@ def write_team_doc(team_vault_path: str, fmt: str, title: str, content: str, aut
     if doc_path.exists():
         return  # already exists, don't overwrite
 
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     doc_path.write_text(
         f"---\n"
         f"title: {title}\n"
@@ -366,23 +347,36 @@ def write_team_doc(team_vault_path: str, fmt: str, title: str, content: str, aut
 
     if auto_promote_mode == "commit":
         try:
-            subprocess.run(
+            r = subprocess.run(
                 ["git", "-C", str(team_path), "add", str(doc_path)],
                 capture_output=True, timeout=10,
             )
-            subprocess.run(
+            if r.returncode != 0:
+                log(f"write_team_doc: git add failed: {r.stderr.decode().strip()}")
+            r = subprocess.run(
                 ["git", "-C", str(team_path), "commit", "-m", f"brain: add {fmt}/{slug}"],
                 capture_output=True, timeout=15,
             )
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+            if r.returncode != 0:
+                log(f"write_team_doc: git commit failed: {r.stderr.decode().strip()}")
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            log(f"write_team_doc: commit mode error: {e}")
     elif auto_promote_mode == "pr":
         branch = f"brain-{slug[:40]}"
+        # Capture current branch so we can restore it after PR creation
+        orig = subprocess.run(
+            ["git", "-C", str(team_path), "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        )
+        orig_branch = orig.stdout.strip() or "main"
         try:
-            subprocess.run(
-                ["git", "-C", str(team_path), "checkout", "-b", branch],
-                capture_output=True, timeout=10,
+            # Use checkout instead of checkout -b if branch already exists
+            exists = subprocess.run(
+                ["git", "-C", str(team_path), "show-ref", "--verify", f"refs/heads/{branch}"],
+                capture_output=True, timeout=5,
             )
+            checkout_cmd = ["checkout", branch] if exists.returncode == 0 else ["checkout", "-b", branch]
+            subprocess.run(["git", "-C", str(team_path)] + checkout_cmd, capture_output=True, timeout=10)
             subprocess.run(
                 ["git", "-C", str(team_path), "add", str(doc_path)],
                 capture_output=True, timeout=10,
@@ -401,8 +395,14 @@ def write_team_doc(team_vault_path: str, fmt: str, title: str, content: str, aut
                  "--body", f"Auto-generated knowledge item from brain plugin.\n\n**Format:** {fmt}\n\n{content}"],
                 cwd=str(team_path), capture_output=True, timeout=30,
             )
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            log(f"write_team_doc: pr mode error: {e}")
+        finally:
+            # Always restore original branch
+            subprocess.run(
+                ["git", "-C", str(team_path), "checkout", orig_branch],
+                capture_output=True, timeout=10,
+            )
 
 
 # ── Atoms index ───────────────────────────────────────────────────────────────
