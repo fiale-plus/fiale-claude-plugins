@@ -1,0 +1,7 @@
+{
+  "name": "brain",
+  "version": "2.0.0",
+  "description": "Three-layer knowledge capture: project docs in-repo, personal Obsidian vault, and optional team vault — all auto-loaded into Claude via CLAUDE.md @imports",
+  "author": { "name": "Pavel Fadeev", "email": "pavel.fadeev@gmail.com", "url": "https://fiale.plus" },
+  "license": "MIT"
+}

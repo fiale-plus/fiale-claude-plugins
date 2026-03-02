@@ -21,24 +21,10 @@ Examples:
     python3 backfill.py ~/.claude/projects --stats
 
     # Import from another machine, last 90 days
-    python3 backfill.py ~/.claude/local-brain/import/laptop2/projects --since 2025-11-28 --limit 100
+    python3 backfill.py /path/to/imported/projects --since 2025-11-28 --limit 100
 
     # Everything, no filter (careful with large archives)
-    python3 backfill.py ~/.claude/local-brain/import/laptop2/projects --min-messages 2
-
-Workflow for importing from another machine:
-    1. On the source machine:
-           tar czf claude-sessions.tar.gz ~/.claude/projects/
-           scp claude-sessions.tar.gz thishost:~/.claude/local-brain/import/laptop2.tar.gz
-
-    2. On this machine:
-           mkdir -p ~/.claude/local-brain/import/laptop2
-           tar xzf ~/.claude/local-brain/import/laptop2.tar.gz -C ~/.claude/local-brain/import/laptop2
-           python3 backfill.py ~/.claude/local-brain/import/laptop2 --stats
-           python3 backfill.py ~/.claude/local-brain/import/laptop2 --since 2026-01-01 --limit 50
-
-    3. Run /synthesize (or wait for scheduled run) to process the queue.
-       Repeat with earlier date ranges as needed.
+    python3 backfill.py ~/.claude/projects --min-messages 2
 """
 import argparse
 import json
@@ -49,8 +35,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-QUEUE_PATH = Path.home() / ".claude" / "local-brain" / "pending.json"
-CONFIG_PATH = Path.home() / ".claude" / "local-brain" / "config.json"
+QUEUE_PATH = Path.home() / ".claude" / "brain" / "pending.json"
+CONFIG_PATH = Path.home() / ".claude" / "brain" / "config.json"
 
 
 def load_config() -> dict:
@@ -71,7 +57,7 @@ def load_queue() -> list:
 
 def find_synthesized_ids(vault_path: str) -> set:
     """Scan vault session notes for already-synthesized session IDs."""
-    sessions_dir = Path(vault_path) / "_AI" / "sessions"
+    sessions_dir = Path(vault_path) / "_sessions"
     ids = set()
     if not sessions_dir.exists():
         return ids
@@ -79,26 +65,6 @@ def find_synthesized_ids(vault_path: str) -> set:
         content = note.read_text()
         ids.update(re.findall(r"<!-- session:([a-f0-9\-]+) -->", content))
     return ids
-
-
-def get_transcript_date(path: Path) -> datetime | None:
-    """Read first timestamp from transcript. Returns None if unreadable."""
-    try:
-        with open(path) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                    ts = entry.get("timestamp")
-                    if ts:
-                        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                except (json.JSONDecodeError, ValueError):
-                    continue
-    except OSError:
-        pass
-    return None
 
 
 def get_transcript_info(path: Path) -> tuple[datetime | None, int]:
@@ -138,12 +104,6 @@ def get_transcript_info(path: Path) -> tuple[datetime | None, int]:
     return first_ts, count
 
 
-def count_user_messages(path: Path) -> int:
-    """Count human-typed user messages (not tool results)."""
-    _, count = get_transcript_info(path)
-    return count
-
-
 def find_transcripts(import_dir: str) -> list[Path]:
     """Find all .jsonl transcript files recursively, excluding index files."""
     root = Path(import_dir).expanduser()
@@ -161,8 +121,9 @@ def main():
         epilog=__doc__,
     )
     parser.add_argument("import_dir", nargs="?",
+                        default=str(Path.home() / ".claude" / "projects"),
                         help="Directory containing .jsonl transcript files. "
-                             "Defaults to sources_path from config (aggregator role).")
+                             "Defaults to ~/.claude/projects")
     parser.add_argument("--since", metavar="YYYY-MM-DD", help="Only include transcripts from this date onwards")
     parser.add_argument("--until", metavar="YYYY-MM-DD", help="Only include transcripts up to this date")
     parser.add_argument("--limit", type=int, metavar="N", help="Queue at most N transcripts")
@@ -179,17 +140,6 @@ def main():
 
     config = load_config()
     vault_path = config.get("vault_path", str(Path.home() / "brain"))
-
-    import_dir = args.import_dir
-    if not import_dir:
-        sources_path = config.get("sources_path", "")
-        if not sources_path:
-            print("ERROR: no import_dir given and no sources_path in config.", file=sys.stderr)
-            print("Usage: backfill.py <import_dir>  or set sources_path in config.json", file=sys.stderr)
-            sys.exit(1)
-        import_dir = sources_path
-        print(f"Using sources_path from config: {import_dir}")
-    args.import_dir = import_dir
 
     existing_queue = load_queue()
     existing_queue_set = set(existing_queue)
@@ -250,7 +200,7 @@ def main():
             skipped_done += 1
             continue
 
-        ts = get_transcript_date(t)
+        ts, msg_count = get_transcript_info(t)
         if ts is None:
             unreadable += 1
             continue
@@ -262,7 +212,6 @@ def main():
             skipped_date += 1
             continue
 
-        msg_count = count_user_messages(t)
         if msg_count < args.min_messages:
             skipped_short += 1
             continue
@@ -272,7 +221,6 @@ def main():
     # Sort oldest-first so history builds in order
     candidates.sort(key=lambda x: x[0])
 
-    # Slice to limit, keeping timestamps for display (no re-reads needed)
     limited = candidates[:args.limit] if args.limit else candidates
     to_add = [path for _, path in limited]
 

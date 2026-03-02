@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "python3 ${CLAUDE_PLUGIN_ROOT}/bin/on_stop.py",
+        "timeout": 5
+      }]
+    }],
+    "UserPromptSubmit": [{
+      "hooks": [{
+        "type": "command",
+        "command": "python3 ${CLAUDE_PLUGIN_ROOT}/bin/auto_start.py",
+        "timeout": 15
+      }]
+    }],
+    "PreToolUse": [{
+      "hooks": [{
+        "type": "command",
+        "command": "python3 ${CLAUDE_PLUGIN_ROOT}/bin/surface.py",
+        "timeout": 3
+      }]
+    }]
+  }
+}

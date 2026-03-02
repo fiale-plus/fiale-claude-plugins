@@ -1,7 +1,0 @@
-{
-  "name": "local-brain",
-  "version": "1.0.0",
-  "description": "Captures Claude Code sessions and synthesizes them into Obsidian vault notes for retrospective self-improvement and progression tracking",
-  "author": { "name": "Pavel Fadeev", "email": "pavel.fadeev@gmail.com" },
-  "license": "MIT"
-}
