@@ -145,6 +145,21 @@ If team mode is enabled, register `~/brain-team` as a second vault.
 
 The plugin does not modify Obsidian's config — Obsidian manages its own vault registry.
 
+### Obsidian CLI (recommended)
+
+Enable the Obsidian CLI for richer `/brain-search` (full-text vault search, backlinks, exact phrase matching):
+
+1. Open Obsidian → **Settings → General → Enable CLI** (toggle on)
+2. Reopen your terminal: `hash -r`
+
+Also install the obsidian-skills Claude plugin for additional Obsidian automation:
+
+```bash
+/plugin install obsidian-skills
+```
+
+`/brain-search` detects the CLI automatically and falls back to grep if it's not available — the plugin works either way.
+
 ---
 
 Designed by [Pavel Fadeev / fiale.plus](https://fiale.plus)
