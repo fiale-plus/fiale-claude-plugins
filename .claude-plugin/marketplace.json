@@ -114,14 +114,15 @@
       ]
     },
     {
-      "name": "local-brain",
-      "description": "Auto-captures Claude Code sessions via Stop hook and synthesizes them into Obsidian vault notes — session summaries, decisions, learnings, and project history for retrospective self-improvement",
-      "version": "1.0.0",
+      "name": "brain",
+      "description": "Three-layer knowledge capture from Claude Code sessions — project docs in-repo (.brain/), personal Obsidian atoms, and optional git-backed team vault. All auto-loaded into Claude via CLAUDE.md @imports.",
+      "version": "2.0.0",
       "author": {
         "name": "Pavel Fadeev",
-        "email": "pavel.fadeev@gmail.com"
+        "email": "pavel.fadeev@gmail.com",
+        "url": "https://fiale.plus"
       },
-      "source": "./plugins/local-brain",
+      "source": "./plugins/brain",
       "category": "productivity",
       "keywords": [
         "obsidian",
@@ -129,9 +130,11 @@
         "second-brain",
         "sessions",
         "synthesis",
-        "retrospective",
         "pkm",
-        "notes"
+        "notes",
+        "team",
+        "decisions",
+        "patterns"
       ]
     }
   ]
