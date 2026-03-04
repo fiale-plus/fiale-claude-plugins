@@ -511,6 +511,17 @@ def main():
                 team_route = True
                 break
 
+    # Prevent brain-about-brain: skip team routing if this session IS the team vault repo
+    if team_route:
+        try:
+            project_resolved = Path(project_path).expanduser().resolve()
+            team_resolved = Path(team_vault).expanduser().resolve()
+            if project_resolved == team_resolved:
+                team_route = False
+                log("synthesize: skipping team routing — project is the team vault itself")
+        except (OSError, ValueError):
+            pass
+
     for item in knowledge_data.get("knowledge", []):
         dest = item.get("destination", "personal")
         fmt = item.get("format", "insight")

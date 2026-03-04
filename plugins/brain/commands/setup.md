@@ -41,6 +41,8 @@ Create placeholder files only if they don't already exist:
 # Top of Mind
 
 What matters most right now. The /synthesize command reads this to assess session alignment.
+Update this file when your focus shifts: start of a new project or sprint, after /brain-reflect
+suggests drift, or whenever your context switches.
 
 ## Current focus
 
@@ -128,20 +130,39 @@ a. **Team name:**
 b. **Team vault path:**
    > "Team vault path? Default: `~/brain-team`"
 
-c. **Git remote URL:**
+c. **Create team repo on GitHub:**
+
+   After team name is entered, suggest a naming convention and offer to create the repo:
+   > "For a dedicated team brain repo, the convention is:
+   >   `<org>/<org>-brain`   (e.g., `fiale-plus/fiale-plus-brain`)
+   >   `<org>/<team>-brain`  (e.g., `acme/platform-brain`)
+   >
+   > Create it now? [Y/n] (requires `gh` CLI + appropriate GitHub permissions)"
+
+   If Y and `gh` is available:
+   - Ask: "Repo name? (e.g., `fiale-plus/fiale-plus-brain`)" — pre-fill with `<team_name>/<team_name>-brain`
+   - Run: `gh repo create <name> --private --description "Team knowledge vault"`
+   - Use the returned clone URL as the git remote for the next step
+
+   If N or `gh` not available:
+   - Continue to the manual URL prompt below
+
+d. **Git remote URL:**
    > "Git remote URL for team vault? (blank = local-only, no sharing)"
 
-d. **Project paths to auto-route:**
+   Skip this prompt if the GitHub repo was just created in the previous step.
+
+e. **Project paths to auto-route:**
    > "Which project paths should auto-route knowledge to the team vault? (e.g. `~/repos/fiale-plus/`)"
    Accept comma-separated list or blank.
 
-e. **Auto-promote mode:**
+f. **Auto-promote mode:**
    > "When knowledge is routed to team vault, how to save it?
    > 1. commit — auto-commit immediately (solo or trusted team) [default]
    > 2. pr — create draft PR for review
    > 3. suggest — print suggestion, don't write automatically"
 
-f. **Init or clone team repo:**
+g. **Init or clone team repo:**
 
    If remote URL provided:
    ```bash
@@ -158,7 +179,7 @@ f. **Init or clone team repo:**
    git init ~/brain-team
    ```
 
-g. **Add @imports to ~/.claude/CLAUDE.md:**
+h. **Add @imports to ~/.claude/CLAUDE.md:**
 
    Check if `~/.claude/CLAUDE.md` exists:
    ```bash
@@ -179,7 +200,7 @@ g. **Add @imports to ~/.claude/CLAUDE.md:**
    touch ~/brain-team/patterns/core.md
    ```
 
-h. Update config with team settings:
+i. Update config with team settings:
    ```json
    {
      "vault_path": "VAULT_PATH",
@@ -196,7 +217,7 @@ h. Update config with team settings:
    }
    ```
 
-i. Obsidian: print instruction to register team vault:
+j. Obsidian: print instruction to register team vault:
    > "In Obsidian: Open folder as vault → `~/brain-team`"
 
 ### 8. Obsidian integration

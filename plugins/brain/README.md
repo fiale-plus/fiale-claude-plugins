@@ -34,6 +34,20 @@ Synthesis uses Claude to classify each session into a Knowledge JSON:
 
 ---
 
+## The killer feature
+
+The project layer is plain markdown committed inside your git repo — auto-loaded into every Claude session via `CLAUDE.md @imports`. **Any Claude working in that repo sees it, with or without the brain plugin installed.** One engineer installs brain and starts accumulating decisions, gotchas, and patterns. Every AI assistant (and every human) working in that repo benefits automatically.
+
+The team vault extends this across projects. It's a shared git repo — one `@import` line in `~/.claude/CLAUDE.md` and every teammate's Claude sessions pick up the team's cross-project wisdom. The knowledge travels with the repo, not the tool.
+
+This is ambient intelligence: structured knowledge baked into the environment, not locked in a tool. Install brain for yourself, and your team gets smarter for free.
+
+**Free (just work in a brain-powered repo):** project decisions, gotchas, and patterns auto-loaded into every Claude session in that repo.
+
+**Install Brain:** add your personal atom vault (surfaced as inline hints) + optional team vault with cross-project wisdom from everyone on the team.
+
+---
+
 ## Three-Layer Architecture
 
 ### Project layer — inside the git repo
@@ -58,6 +72,20 @@ Auto-loaded via `<project-root>/CLAUDE.md` @imports (managed automatically). Vis
 ```
 
 Loaded via `surface.py` PreToolUse hook — keyword hints appear inline when relevant.
+
+#### Polaris — your stated focus
+
+```
+~/brain/Polaris/top-of-mind.md
+```
+
+Brain reads this before every synthesis to assess whether the session aligned with your current priorities. `/brain-reflect` also reads it to detect drift and suggest edits. Update it when your focus shifts:
+
+- Start of a new project or sprint
+- After `/brain-reflect` suggests drift
+- Whenever your context switches (context-switching is exactly what Polaris exists to catch)
+
+Brain never auto-edits Polaris — `/brain-reflect` will suggest edits, you decide.
 
 ### Team layer — git-backed vault (optional)
 

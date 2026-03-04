@@ -28,8 +28,27 @@ If team is already configured, show current settings and ask:
 **Team vault path:**
 > "Team vault path? Default: `~/brain-team`"
 
+**Create team repo on GitHub:**
+
+After team name is entered, suggest a naming convention and offer to create the repo:
+> "For a dedicated team brain repo, the convention is:
+>   `<org>/<org>-brain`   (e.g., `fiale-plus/fiale-plus-brain`)
+>   `<org>/<team>-brain`  (e.g., `acme/platform-brain`)
+>
+> Create it now? [Y/n] (requires `gh` CLI + appropriate GitHub permissions)"
+
+If Y and `gh` is available:
+- Ask: "Repo name? (e.g., `fiale-plus/fiale-plus-brain`)" — pre-fill with `<team_name>/<team_name>-brain`
+- Run: `gh repo create <name> --private --description "Team knowledge vault"`
+- Use the returned clone URL as the git remote (skip the manual URL prompt below)
+
+If N or `gh` not available:
+- Continue to the manual URL prompt
+
 **Git remote URL:**
 > "Git remote URL? (blank = local-only, no remote sharing)"
+
+Skip this prompt if the GitHub repo was just created above.
 
 **Project paths for auto-routing:**
 > "Which project paths should auto-route knowledge to team vault?
