@@ -239,9 +239,31 @@ def write_project_doc(project_root: str, fmt: str, title: str, content: str, ses
         doc_path.write_text(f"# {header_title}\n{entry}")
 
 
+def _resolve_claude_md_target(project_root: Path) -> Path:
+    """If CLAUDE.md is a pure @-reference file, return the referenced file path."""
+    claude_md = project_root / "CLAUDE.md"
+    if not claude_md.exists():
+        return claude_md
+    content = claude_md.read_text(encoding="utf-8", errors="replace")
+    # A "pure redirect" = only lines that are @imports or blank/comments
+    meaningful = [l.strip() for l in content.splitlines()
+                  if l.strip() and not l.strip().startswith('#')
+                  and '<!-- brain' not in l]
+    at_lines = [l for l in meaningful if l.startswith('@')]
+    if at_lines and len(at_lines) == len(meaningful):
+        # Follow first @import that points to an existing .md file
+        for ref in at_lines:
+            ref_path = ref.lstrip('@').strip()
+            resolved = project_root / ref_path
+            if resolved.suffix == '.md':
+                return resolved  # write brain block here instead
+    return claude_md
+
+
 def update_project_claude_md(project_root: str):
     """
     Upsert a <!-- brain managed --> block in <project_root>/CLAUDE.md
+    (or the file it redirects to if CLAUDE.md is a pure @-reference)
     with @imports for each .brain/*.md that exists.
     Idempotent.
     """
@@ -253,7 +275,7 @@ def update_project_claude_md(project_root: str):
     if not docs:
         return
 
-    claude_md_path = Path(project_root) / "CLAUDE.md"
+    claude_md_path = _resolve_claude_md_target(Path(project_root))
     imports = "\n".join(f"@.brain/{d.name}" for d in docs)
     managed_block = f"<!-- brain managed -->\n{imports}\n<!-- end brain managed -->"
 
@@ -263,16 +285,20 @@ def update_project_claude_md(project_root: str):
         if "<!-- brain managed -->" in existing and "<!-- end brain managed -->" not in existing:
             log(f"update_project_claude_md: malformed brain block in {claude_md_path}, skipping")
             return
-        new_content = re.sub(
-            r"<!-- brain managed -->.*?<!-- end brain managed -->",
-            managed_block,
-            existing,
-            flags=re.DOTALL,
-        )
-        if new_content == existing:
-            # Block not present yet — append it
+        if "<!-- brain managed -->" in existing:
+            # Block exists — replace it (may be a no-op if identical)
+            new_content = re.sub(
+                r"<!-- brain managed -->.*?<!-- end brain managed -->",
+                managed_block,
+                existing,
+                flags=re.DOTALL,
+            )
+            if new_content != existing:
+                claude_md_path.write_text(new_content)
+        else:
+            # Block not present — append
             new_content = existing.rstrip("\n") + "\n\n" + managed_block + "\n"
-        claude_md_path.write_text(new_content)
+            claude_md_path.write_text(new_content)
     else:
         claude_md_path.write_text(managed_block + "\n")
 
@@ -502,14 +528,40 @@ def main():
     team_project_paths = team_cfg.get("project_paths", [])
     auto_promote_mode = team_cfg.get("auto_promote_mode", "commit")
 
+    team_project_repos = [str(Path(r).expanduser().resolve())
+                          for r in team_cfg.get("project_repos", [])]
+
     # Determine if this project matches team routing
     team_route = False
     if team_enabled and project_path:
-        for tp in team_project_paths:
-            expanded = str(Path(tp).expanduser())
-            if project_path.startswith(expanded):
-                team_route = True
-                break
+        # Exact repo match (project_repos)
+        try:
+            project_resolved = Path(project_path).expanduser().resolve()
+            for rp in team_project_repos:
+                if project_resolved == Path(rp).resolve():
+                    team_route = True
+                    break
+        except (OSError, ValueError):
+            pass
+
+        # Prefix match fallback (project_paths)
+        if not team_route:
+            for tp in team_project_paths:
+                expanded = str(Path(tp).expanduser())
+                if project_path.startswith(expanded):
+                    team_route = True
+                    break
+
+    # Prevent brain-about-brain: skip team routing if this session IS the team vault repo
+    if team_route:
+        try:
+            project_resolved = Path(project_path).expanduser().resolve()
+            team_resolved = Path(team_vault).expanduser().resolve()
+            if project_resolved == team_resolved:
+                team_route = False
+                log("synthesize: skipping team routing — project is the team vault itself")
+        except (OSError, ValueError):
+            pass
 
     for item in knowledge_data.get("knowledge", []):
         dest = item.get("destination", "personal")

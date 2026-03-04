@@ -89,6 +89,17 @@ New session  → auto-synthesizes pending (background, non-blocking)
 PreToolUse   → surfaces relevant atoms as inline hints
 ```
 
+> **Everyone in the repo benefits — plugin or not.**
+> Brain commits knowledge into `.brain/` inside your git repo, auto-loaded via
+> `CLAUDE.md @imports`. Any Claude working in that repo sees it immediately.
+> Install the plugin yourself → your whole team gets smarter for free.
+
+**Free (just work in a brain-powered repo):** project decisions, gotchas, and
+patterns auto-loaded into every Claude session in that repo.
+
+**Install Brain:** add your personal atom vault (surfaced as inline hints) +
+optional team vault with cross-project wisdom from everyone on the team.
+
 **Install:**
 ```bash
 /plugin marketplace add fiale-plus/fiale-claude-plugins

@@ -28,13 +28,50 @@ If team is already configured, show current settings and ask:
 **Team vault path:**
 > "Team vault path? Default: `~/brain-team`"
 
+**Create team repo on GitHub:**
+
+After team name is entered, suggest a naming convention and offer to create the repo:
+> "For a dedicated team brain repo, the convention is:
+>   `<org>/<org>-brain`   (e.g., `fiale-plus/fiale-plus-brain`)
+>   `<org>/<team>-brain`  (e.g., `acme/platform-brain`)
+>
+> Create it now? [Y/n] (requires `gh` CLI + appropriate GitHub permissions)"
+
+If Y and `gh` is available:
+- Ask: "Repo name? (e.g., `fiale-plus/fiale-plus-brain`)" — pre-fill with `<team_name>/<team_name>-brain`
+- Run: `gh repo create <name> --private --description "Team knowledge vault"`
+- Use the returned clone URL as the git remote (skip the manual URL prompt below)
+
+If N or `gh` not available:
+- Continue to the manual URL prompt
+
 **Git remote URL:**
 > "Git remote URL? (blank = local-only, no remote sharing)"
 
-**Project paths for auto-routing:**
-> "Which project paths should auto-route knowledge to team vault?
-> Enter comma-separated paths (e.g. `~/repos/fiale-plus/`, `~/work/`)
-> or blank to route manually only."
+Skip this prompt if the GitHub repo was just created above.
+
+**Team repos for auto-routing:**
+
+Ask:
+> "How do you want to specify which repos route knowledge to the team vault?
+> 1. Org folder — all repos under a directory (with optional exclude list) [default]
+> 2. Discover — scan a folder and pick specific repos"
+
+**If option 1 (org folder):**
+- Ask: "Folder path? (e.g. `~/repos/fiale-plus/`)"
+- Run: `find <folder> -maxdepth 1 -mindepth 1 -type d | sort` and show discovered git repos (informational)
+- Store as `project_paths: ["<expanded_path>"]` in config
+
+**If option 2 (discover/multiselect):**
+- Ask: "Which folder contains your team repos? (e.g. `~/repos/fiale-plus/`)"
+- Run: `find <folder> -maxdepth 1 -mindepth 1 -type d | sort`
+- For each subdir, check: `ls <dir>/.git 2>/dev/null`
+- Present numbered list of git repos (excluding team vault itself)
+- Ask: "Select repos to opt in (comma-separated numbers, or 'all'):"
+- For each selected repo, check `.brain/` status:
+  - If found: report `✓ .brain/ found — (DECISIONS, GOTCHAS, PATTERNS)`
+  - If not: report `○ no .brain/ yet — /brain-align will bootstrap it`
+- Store as `project_repos: ["<abs_path1>", "<abs_path2>"]` in config
 
 **Auto-promote mode:**
 > "When knowledge is routed, how to save it?
@@ -106,7 +143,8 @@ cfg['team'] = {
     'name': '<team_name>',
     'vault_path': '<team_vault_path>',
     'git_remote': '<remote_url_or_empty>',
-    'project_paths': [<project_paths_list>],
+    'project_paths': [<project_paths_list>],      # org folder mode
+    'project_repos': [<project_repos_list>],       # discover mode (exact repos)
     'auto_promote_mode': '<mode>'
 }
 cfg_path.write_text(json.dumps(cfg, indent=2))
