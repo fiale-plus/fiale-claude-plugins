@@ -152,9 +152,28 @@ d. **Git remote URL:**
 
    Skip this prompt if the GitHub repo was just created in the previous step.
 
-e. **Project paths to auto-route:**
-   > "Which project paths should auto-route knowledge to the team vault? (e.g. `~/repos/fiale-plus/`)"
-   Accept comma-separated list or blank.
+e. **Team repos to auto-route:**
+
+   Ask:
+   > "How do you want to specify which repos route knowledge to the team vault?
+   > 1. Org folder — all repos under a directory (with optional exclude list) [default]
+   > 2. Discover — scan a folder and pick specific repos"
+
+   **If option 1 (org folder):**
+   - Ask: "Folder path? (e.g. `~/repos/fiale-plus/`)"
+   - Run: `find <folder> -maxdepth 1 -mindepth 1 -type d | sort` and show discovered git repos (informational)
+   - Store as `project_paths: ["<expanded_path>"]` in config
+
+   **If option 2 (discover/multiselect):**
+   - Ask: "Which folder contains your team repos? (e.g. `~/repos/fiale-plus/`)"
+   - Run: `find <folder> -maxdepth 1 -mindepth 1 -type d | sort`
+   - For each subdir, check: `ls <dir>/.git 2>/dev/null`
+   - Present numbered list of git repos (excluding team vault itself)
+   - Ask: "Select repos to opt in (comma-separated numbers, or 'all'):"
+   - For each selected repo, check `.brain/` status:
+     - If found: report `✓ .brain/ found — (DECISIONS, GOTCHAS, PATTERNS)`
+     - If not: report `○ no .brain/ yet — /brain-align will bootstrap it`
+   - Store as `project_repos: ["<abs_path1>", "<abs_path2>"]` in config
 
 f. **Auto-promote mode:**
    > "When knowledge is routed to team vault, how to save it?
@@ -212,6 +231,7 @@ i. Update config with team settings:
        "vault_path": "~/brain-team",
        "git_remote": "<remote_url_or_empty>",
        "project_paths": ["<path1>", "..."],
+       "project_repos": ["<abs_path1>", "..."],
        "auto_promote_mode": "commit"
      }
    }
