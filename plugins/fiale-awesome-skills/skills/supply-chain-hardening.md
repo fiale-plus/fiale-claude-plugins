@@ -195,9 +195,17 @@ Every supply chain payload needs to call home. An outbound firewall catches this
 - **LuLu** (free, open-source): https://objective-see.org/products/lulu.html
 - **Little Snitch** (paid, polished UI)
 
-Configure to alert on new outbound connections from `node`, `python3`, `cargo`, `go`, `bun`. Approve known destinations (registry.npmjs.org, pypi.org, crates.io, proxy.golang.org, github.com).
+**Install via Homebrew** (if no outbound firewall detected in audit):
+```bash
+brew install --cask lulu
+open /Applications/LuLu.app
+```
 
-Cannot be automated — tell the user to install manually.
+After install the user must manually approve in System Settings:
+1. **System Extension** — Privacy & Security > scroll down > Allow
+2. **Network Filter** — click Allow when prompted
+
+Configure to alert on new outbound connections from `node`, `python3`, `cargo`, `go`, `bun`. Approve known destinations (registry.npmjs.org, pypi.org, crates.io, proxy.golang.org, github.com).
 
 ### DNS filtering
 
@@ -238,8 +246,8 @@ corepack --version  # expect: version number
 - [x] Corepack: enabled
 - [x] Cargo: cargo-audit installed, sparse protocol enabled
 
-### Requires manual action
-- [ ] Install outbound firewall (LuLu recommended)
+### Requires manual approval (after automated install)
+- [ ] Approve LuLu System Extension + Network Filter in System Settings
 - [ ] Configure DNS filtering (NextDNS or 1.1.1.3)
 - [ ] Migrate N global pip packages to `uv tool install`
 
