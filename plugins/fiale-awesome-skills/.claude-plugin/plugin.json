@@ -1,0 +1,8 @@
+{
+  "name": "fiale-awesome-skills",
+  "version": "0.1.0",
+  "description": "Curated Claude Code skills for developer security and productivity — supply chain hardening across npm, Python, Go, Rust, and Homebrew (macOS)",
+  "author": { "name": "Pavel Fadeev", "email": "pavel.fadeev@gmail.com", "url": "https://fiale.plus" },
+  "license": "MIT",
+  "keywords": ["claude-code", "security", "supply-chain", "hardening", "npm", "pip", "macos"]
+}

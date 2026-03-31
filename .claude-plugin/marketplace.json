@@ -114,6 +114,27 @@
       ]
     },
     {
+      "name": "fiale-awesome-skills",
+      "description": "Curated Claude Code skills for developer security and productivity — supply chain hardening across npm, Python, Go, Rust, and Homebrew (macOS)",
+      "version": "0.1.0",
+      "author": {
+        "name": "Pavel Fadeev",
+        "email": "pavel.fadeev@gmail.com",
+        "url": "https://fiale.plus"
+      },
+      "source": "./plugins/fiale-awesome-skills",
+      "category": "productivity",
+      "keywords": [
+        "claude-code",
+        "security",
+        "supply-chain",
+        "hardening",
+        "npm",
+        "pip",
+        "macos"
+      ]
+    },
+    {
       "name": "brain",
       "description": "Three-layer knowledge capture from Claude Code sessions — project docs in-repo (.brain/), personal Obsidian atoms, and optional git-backed team vault. All auto-loaded into Claude via CLAUDE.md @imports.",
       "version": "2.0.0",
