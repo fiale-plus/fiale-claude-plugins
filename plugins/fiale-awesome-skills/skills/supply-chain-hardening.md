@@ -71,9 +71,6 @@ ignore-scripts=true
 
 # Pin exact versions on install
 save-exact=true
-
-# Auto-audit on install
-audit=true
 ```
 
 **Corepack** — pins the package manager binary:
