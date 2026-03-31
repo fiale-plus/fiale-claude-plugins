@@ -96,12 +96,18 @@ corepack --version             # should return version
 
 ### Python / pip / uv
 
-**Backup first**:
+**Detect active pip config location first** — the legacy `~/.pip/pip.conf` takes precedence if it exists, so operate on whichever file is active:
 ```bash
-cp ~/.config/pip/pip.conf ~/.config/pip/pip.conf.backup.$(date +%s) 2>/dev/null && echo "backup created" || echo "no existing file"
+PIP_CONF=$([ -f ~/.pip/pip.conf ] && echo ~/.pip/pip.conf || echo ~/.config/pip/pip.conf)
+echo "Active pip config: $PIP_CONF"
 ```
 
-**File**: `~/.config/pip/pip.conf` (create `~/.config/pip/` directory if needed)
+**Backup first** (using the detected path):
+```bash
+cp "$PIP_CONF" "${PIP_CONF}.backup.$(date +%s)" 2>/dev/null && echo "backup created" || echo "no existing file"
+```
+
+**File**: write to the detected `$PIP_CONF` path (create parent directory if needed: `mkdir -p "$(dirname "$PIP_CONF")")`)
 
 ```ini
 [global]
@@ -124,7 +130,7 @@ pip3 uninstall <package>
 
 **Verify**:
 ```bash
-pip3 install requests  # should FAIL with require-virtualenv error
+pip3 config get global.require-virtualenv  # should return: true
 pip3 list --user       # should be empty or minimal
 ```
 
@@ -215,7 +221,7 @@ Re-run the audit from Step 1 and present before/after comparison.
 
 ```bash
 npm config get ignore-scripts  # expect: true
-pip3 install requests 2>&1 | head -3  # expect: require-virtualenv error
+pip3 config get global.require-virtualenv  # expect: true
 go env GONOSUMDB  # expect: empty
 corepack --version  # expect: version number
 ```
