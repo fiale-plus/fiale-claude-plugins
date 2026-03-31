@@ -107,7 +107,7 @@ echo "Active pip config: $PIP_CONF"
 cp "$PIP_CONF" "${PIP_CONF}.backup.$(date +%s)" 2>/dev/null && echo "backup created" || echo "no existing file"
 ```
 
-**File**: write to the detected `$PIP_CONF` path (create parent directory if needed: `mkdir -p "$(dirname "$PIP_CONF")")`)
+**File**: write to the detected `$PIP_CONF` path (create parent directory if needed: `mkdir -p "$(dirname "$PIP_CONF")"`)
 
 ```ini
 [global]
