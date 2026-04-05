@@ -51,8 +51,8 @@ go install github.com/xdevplatform/xurl@latest  # Go
 **If playground is not installed** and user wants sandbox:
 ```bash
 go install github.com/xdevplatform/playground/cmd/playground@latest
-playground start    # serves at http://localhost:8080
-playground refresh  # update OpenAPI spec cache (optional)
+playground start -p 3080    # port 3080 to avoid conflict with xurl OAuth callback on 8080
+playground refresh          # update OpenAPI spec cache (optional)
 ```
 
 **If xurl auth is not configured**, tell the user to run these themselves (outside this session):
@@ -60,7 +60,7 @@ playground refresh  # update OpenAPI spec cache (optional)
 xurl auth apps add my-app --client-id <YOUR_ID> --client-secret <YOUR_SECRET>
 xurl auth oauth2
 ```
-They must set the redirect URI to `http://localhost:8080/callback` in the X Developer Console.
+They must set the redirect URI to `http://localhost:8080/callback` in the X Developer Console. Note: playground must run on a different port (e.g., 3080) to avoid conflicting with the OAuth callback port.
 
 ## Step 2: Sandbox Mode (playground)
 
@@ -69,7 +69,7 @@ When playground is running, **default to sandbox** for all operations. This cost
 Set the `API_BASE_URL` env var to redirect all xurl commands to the local playground:
 
 ```bash
-export API_BASE_URL=http://localhost:8080
+export API_BASE_URL=http://localhost:3080
 ```
 
 Now **all shortcut commands work against sandbox** — same syntax as live mode:
@@ -99,16 +99,11 @@ Prefix all sandbox output with `[SANDBOX]`.
 After testing a workflow in sandbox, show what it would cost on the real API:
 
 ```bash
-# Simulated cost breakdown
-curl -s http://localhost:8080/api/accounts/0/cost | jq '.'
-
-# Current pricing rates (may reflect real X API rates)
-curl -s http://localhost:8080/api/credits/pricing | jq '.'
-
-# Usage breakdown by event type and request type
-curl -s "http://localhost:8080/api/accounts/0/usage?interval=30days&groupBy=eventType" | jq '.'
-curl -s "http://localhost:8080/api/accounts/0/usage?interval=30days&groupBy=requestType" | jq '.'
+# Current pricing rates (account-independent, always works)
+curl -s http://localhost:3080/api/credits/pricing | jq '.'
 ```
+
+Note: playground derives account ID from the auth token. The default `Bearer test` token maps to account `0`. If xurl sends a real OAuth token via `API_BASE_URL`, the account ID will differ. Check `/health` for active account info before querying per-account endpoints.
 
 Present the cost preview to the user before they switch to live mode.
 
@@ -116,30 +111,30 @@ Present the cost preview to the user before they switch to live mode.
 
 ```bash
 # Save current state
-curl -s http://localhost:8080/state/export > /tmp/xurl-playground-state.json
+curl -s http://localhost:3080/state/export > /tmp/xurl-playground-state.json
 
 # Restore a saved state
 curl -s -X POST -H "Content-Type: application/json" \
-  -d @/tmp/xurl-playground-state.json http://localhost:8080/state/import
+  -d @/tmp/xurl-playground-state.json http://localhost:3080/state/import
 
 # Reset to fresh defaults
-curl -s -X POST http://localhost:8080/state/reset
+curl -s -X POST http://localhost:3080/state/reset
 
 # Force-save state to disk
-curl -s -X POST http://localhost:8080/state/save
+curl -s -X POST http://localhost:3080/state/save
 
 # Simulate rate limiting to test error handling
-curl -X PUT http://localhost:8080/config/update \
+curl -X PUT http://localhost:3080/config/update \
   -H "Content-Type: application/json" \
   -d '{"errors": {"enabled": true, "error_rate": 0.3, "error_type": "rate_limit"}}'
 
 # Disable error simulation
-curl -X PUT http://localhost:8080/config/update \
+curl -X PUT http://localhost:3080/config/update \
   -H "Content-Type: application/json" \
   -d '{"errors": {"enabled": false}}'
 ```
 
-Web UI for browsing sandbox data: `http://localhost:8080/playground`
+Web UI for browsing sandbox data: `http://localhost:3080/playground`
 
 ### Switching to live
 
@@ -180,19 +175,19 @@ xurl media upload file.jpg         # $0.01
 
 Note: search/timeline/mentions billing per-post vs per-request is not publicly confirmed by X. The ~$0.005/result is community consensus. Use the lowest `-n` value that satisfies your need — it directly controls cost.
 
-### Batch reads (major cost saver)
+### Batch reads
 
-When reading 3+ posts, prefer the batch endpoint over individual reads:
+When reading multiple posts, use the batch endpoint to save rate limit quota (up to 100 IDs in one request):
 
 ```bash
-# Individual: 10 reads × $0.005 = $0.05
-xurl read ID1 && xurl read ID2 && ... # expensive
+# Individual: 10 separate requests (eats rate limit faster)
+xurl read ID1 && xurl read ID2 && ...
 
-# Batch: up to 100 IDs in one request — significantly cheaper
+# Batch: one request, same billing (each post still counts separately)
 xurl /2/tweets?ids=ID1,ID2,ID3,...,ID10
 ```
 
-Community data suggests batch reads cost ~75% less than equivalent individual reads. Always prefer batch when reading multiple known post IDs.
+Note: X bills each post in a batch separately — batching does NOT reduce credit cost. It saves rate limit quota and network round trips.
 
 ### Write operations — compose + confirm
 
@@ -228,8 +223,7 @@ Track spending locally using approximate costs:
 
 | Operation | Approximate Cost |
 |-----------|-----------------|
-| Post read | $0.005 |
-| Batch read (N posts) | ~$0.005 × N (conservative; actual may be lower) |
+| Post read (single or batch) | $0.005 per post |
 | User lookup | $0.010 |
 | Post write | $0.010 |
 | DM read | $0.010 |
@@ -329,17 +323,11 @@ Switch: `xurl auth default dev` or `xurl --app prod post "..."`
 
 When the user asks for a summary, or at session end:
 
-1. If playground was used, show simulated cost:
+1. Read `/tmp/xurl-session-config.json` for local spend tracking
+2. If playground was used, show pricing reference:
    ```bash
-   curl -s http://localhost:8080/api/accounts/0/cost | jq '.'
+   curl -s http://localhost:3080/api/credits/pricing | jq '.'
    ```
-
-2. If live API was used, show real usage:
-   ```bash
-   xurl --auth app /2/usage/tweets?days=1
-   ```
-
-3. Show local tracker data from `/tmp/xurl-session-config.json`
 
 Present as:
 
@@ -348,11 +336,14 @@ Present as:
 | Category | Count | Est. Cost |
 |----------|-------|-----------|
 | Sandbox ops | N | $0.00 (free) |
-| Live reads | N | $X.XX |
-| Live writes | N | $X.XX |
-| Total live spend | — | $X.XX |
-| Would-cost (sandbox→live) | — | $X.XX |
+| Live reads | N | ~$X.XX |
+| Live writes | N | ~$X.XX |
+| Live engagements | N | ~$X.XX |
+| Est. total live spend | — | ~$X.XX |
+| Session limit | — | $Y.YY |
 ```
+
+Costs are estimates from local tracking. For authoritative billing data, check the X Developer Console.
 
 ## Step 9: Quick Pick (no context)
 

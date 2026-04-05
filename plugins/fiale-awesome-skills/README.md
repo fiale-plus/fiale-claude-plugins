@@ -45,7 +45,7 @@ Post, reply, search, and engage on X/Twitter through [xurl](https://github.com/x
 - Cost preview: see what sandbox operations would cost before going live
 - Configurable session spending limits (default $0.25)
 - Estimated cost shown before every live write operation
-- Real usage tracking via X API's `/2/usage/tweets` endpoint
+- Local session spend tracking with estimated costs per operation
 - 24h UTC deduplication awareness (same resource = 1 charge per day)
 
 **Pay-per-use pricing** (community-sourced estimates, check Developer Console for authoritative rates):
