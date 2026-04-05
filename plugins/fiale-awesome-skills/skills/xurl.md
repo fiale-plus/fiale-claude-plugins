@@ -56,14 +56,18 @@ go install github.com/xdevplatform/playground/cmd/playground@latest
 ```
 This requires Go. If Go is not installed, tell the user to install it first (`brew install go` on macOS) or download a pre-built binary from https://github.com/xdevplatform/playground/releases.
 
-After installation, start the sandbox:
+After installation, start the sandbox in the background (it's a foreground server — must be detached or it blocks the session):
 ```bash
-playground start -p 3080    # port 3080 to avoid conflict with xurl OAuth callback on 8080
+playground start -p 3080 &>/dev/null &
+```
+Then verify it's up:
+```bash
+curl -sf http://localhost:3080/health && echo "playground: running"
 ```
 
-**If playground is installed but not running**, start it:
+**If playground is installed but not running**, start it the same way:
 ```bash
-playground start -p 3080
+playground start -p 3080 &>/dev/null &
 ```
 
 **If xurl auth is not configured**, tell the user to run these themselves (outside this session). Auth is required for both sandbox and live mode — xurl needs credentials to construct requests:
@@ -272,7 +276,7 @@ The Developer Console spending limit is your absolute safety net — set it to y
 **Playground not running (user expects sandbox):**
 ```
 Sandbox not available — playground is not running on port 3080.
-  1. Start sandbox: `playground start -p 3080` (~2s)
+  1. Start sandbox: `playground start -p 3080 &>/dev/null &` (~2s)
   2. Switch to live mode (real credits)
   3. Cancel
 Which? (default: 1)
