@@ -19,9 +19,9 @@ These are non-negotiable. Violating any of them leaks credentials.
 - **Credential registration is manual.** The user must run `xurl auth apps add ...` and `xurl auth oauth2` themselves, outside this session. Do not execute auth commands with secrets.
 - To check auth state safely: `xurl auth status` (shows apps and token status without exposing secrets).
 
-## Step 1: Environment Detection
+## Step 1: Environment Detection and First-Run Setup
 
-Run silently — only surface issues, not successes:
+Run detection silently:
 
 ```bash
 which xurl 2>/dev/null && echo "xurl: installed" || echo "xurl: NOT FOUND"
@@ -32,16 +32,41 @@ xurl auth status 2>&1 || true
 cat /tmp/xurl-session-config.json 2>/dev/null || echo "no session config"
 ```
 
-**Determine mode and act:**
+### Returning user (session config exists)
 
-- **Everything configured, session config exists**: reset `trusted_actions` to `[]`, `spent` to `0.0`, and `operations` to `0` (these are per-session — only `spending_limit` carries over). Then show one-line header and proceed: `[SANDBOX MODE]` or `[LIVE MODE — limit: $X.XX]`
-- **Playground running + auth configured**: "Ready. Sandbox mode active. What would you like to do?"
-- **Auth configured, no playground**: "No sandbox running. Live mode — real credits will be used."
-- **Playground running, no auth**: "Sandbox is running, but xurl auth is required even for sandbox (xurl needs credentials to construct requests — playground accepts any token, so no real billing occurs). Set up auth first."
-- **`API_BASE_URL` set to localhost**: announce "Sandbox mode active via API_BASE_URL."
-- **xurl not installed**: show install options and stop
-- **Playground not installed**: offer to install it (see below)
-- **Neither auth nor playground**: show setup instructions for both (auth first, then playground)
+Reset per-session fields (`trusted_actions` to `[]`, `spent` to `0.0`, `operations` to `0` — only `spending_limit` carries over). Show one-line header and proceed with the request.
+
+### First-run interview
+
+On first invocation, detect what's configured and present a status + guided setup:
+
+```
+Welcome to xurl. Checking your setup...
+
+  xurl:       ✓ installed / ✗ not found
+  OAuth2:     ✓ configured / ✗ missing (needed for post, like, follow, timeline, bookmarks, DM)
+  Bearer:     ✓ configured / ✗ missing (needed for usage tracking)
+  Playground: ✓ running on 3080 / ✗ not running / ✗ not installed
+
+What do you want to do?
+  1. Post / engage / read timeline or bookmarks  (needs OAuth2)
+  2. Track my API usage and costs                (needs bearer token)
+  3. Test in sandbox first                       (needs playground + OAuth2)
+  4. Full setup — all of the above
+```
+
+Only guide the user through what's missing for their chosen path. Don't dump all setup instructions at once.
+
+### Auth types explained
+
+Two auth types serve different purposes — both are recommended:
+
+| Auth type | What it unlocks | Setup command (user runs outside session) |
+|-----------|----------------|------------------------------------------|
+| **OAuth2 user context** | Post, reply, like, follow, DM, timeline, bookmarks, mentions | `xurl auth oauth2` |
+| **Bearer token (app-only)** | Usage tracking (`/2/usage/tweets`), public search, public user lookup | `xurl auth app --bearer-token <TOKEN>` |
+
+### Setup instructions (user runs outside this session)
 
 **If xurl is not installed:**
 ```bash
@@ -50,34 +75,34 @@ npm install -g @xdevplatform/xurl            # npm
 go install github.com/xdevplatform/xurl@latest  # Go
 ```
 
-**If playground is not installed**, offer to install it (recommended for cost-free testing):
-```bash
-go install github.com/xdevplatform/playground/cmd/playground@latest
-```
-This requires Go. If Go is not installed, tell the user to install it first (`brew install go` on macOS) or download a pre-built binary from https://github.com/xdevplatform/playground/releases.
-
-After installation, start the sandbox in the background (it's a foreground server — must be detached or it blocks the session):
-```bash
-playground start -p 3080 &>/dev/null &
-```
-Then verify it's up:
-```bash
-curl -sf http://localhost:3080/health && echo "playground: running"
-```
-
-**If playground is installed but not running**, start it the same way:
-```bash
-playground start -p 3080 &>/dev/null &
-```
-
-**If xurl auth is not configured**, tell the user to run these themselves (outside this session). Auth is required for both sandbox and live mode — xurl needs credentials to construct requests:
+**OAuth2 setup** (required for most operations):
 ```
 xurl auth apps add my-app --client-id <YOUR_ID> --client-secret <YOUR_SECRET>
 xurl auth default my-app
 xurl auth oauth2
 ```
 The `auth default` step is required — OAuth2 flow fails unless the app is set as default first.
-They must set the redirect URI to `http://localhost:8080/callback` in the X Developer Console. Note: playground runs on port 3080 specifically to avoid conflicting with this OAuth callback port.
+Redirect URI must be `http://localhost:8080/callback` in the X Developer Console.
+
+**Bearer token setup** (required for usage tracking):
+```
+xurl auth app --bearer-token <YOUR_BEARER_TOKEN>
+```
+Get the bearer token from X Developer Console → your app → "Keys and tokens" → Bearer Token → Generate.
+
+**Playground install** (recommended for free sandbox testing):
+```bash
+go install github.com/xdevplatform/playground/cmd/playground@latest
+```
+Requires Go (`brew install go` on macOS). Or download a pre-built binary from https://github.com/xdevplatform/playground/releases.
+
+Start the sandbox in the background:
+```bash
+playground start -p 3080 &>/dev/null &
+```
+Verify: `curl -sf http://localhost:3080/health && echo "playground: running"`
+
+Playground runs on port 3080 to avoid conflicting with the OAuth callback on port 8080.
 
 ## Step 2: Sandbox Mode (playground)
 
@@ -281,6 +306,16 @@ The Developer Console spending limit is your absolute safety net — set it to y
 3. Batch-engage with flagged posts: one confirmation for the whole set
 ```
 
+### Bookmark Processing
+```
+1. xurl bookmarks -n 10 → fetch recent bookmarks (~$0.05)
+2. For each bookmark: read full post → extract key content
+3. Process into knowledge base, notes, or action items
+4. Optionally unbookmark processed items to track progress
+```
+
+Cost: ~$0.005 per bookmark fetched + ~$0.005 per full read if needed. A 10-bookmark processing run costs ~$0.05–$0.10.
+
 ## Step 6: Error Recovery
 
 **Playground not running (user expects sandbox):**
@@ -340,7 +375,12 @@ Switch: `xurl auth default dev` or `xurl --app prod post "..."`
 When the user asks for a summary, or at session end:
 
 1. Read `/tmp/xurl-session-config.json` for local spend tracking
-2. If playground was used, show pricing reference:
+2. If bearer token is configured, query real usage:
+   ```bash
+   xurl --auth app "/2/usage/tweets?days=1"
+   ```
+   This returns actual post consumption (reads) for today. Note: it only tracks post reads, not writes/likes/follows.
+3. If playground was used, show pricing reference:
    ```bash
    curl -s http://localhost:3080/api/credits/pricing | jq '.'
    ```
@@ -357,9 +397,10 @@ Present as:
 | Live engagements | N | ~$X.XX |
 | Est. total live spend | — | ~$X.XX |
 | Session limit | — | $Y.YY |
+| API usage (from /2/usage) | N posts consumed today | (real data) |
 ```
 
-Costs are estimates from local tracking. For authoritative billing data, check the X Developer Console.
+Local estimates are approximate. The `/2/usage/tweets` endpoint (requires bearer token auth) gives real post consumption data. For full billing details, check the X Developer Console.
 
 ## Step 9: Quick Pick (no context)
 
