@@ -15,6 +15,7 @@ Plugins for [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 | [mdbrowser](#mdbrowser) | Browse any URL as clean markdown |
 | [Vibes](#vibes) | Sentiment-driven musical phrases on task completion |
 | [Remote Layout](#remote-layout) | Mobile-friendly response formatting for remote sessions |
+| [Awesome Skills](#awesome-skills) | Supply chain hardening, cost-optimized X/Twitter via xurl |
 
 ---
 
@@ -174,6 +175,28 @@ Switch Claude's response format for small screens. Persists across sessions via 
 ```
 
 → [Full documentation](plugins/remote-layout)
+
+---
+
+## Awesome Skills
+
+**Curated skills that turn Claude into a specialist.**
+
+Developer security and productivity skills — supply chain hardening across npm/Python/Go/Rust/Homebrew, and cost-optimized X/Twitter workflows via [xurl](https://github.com/xdevplatform/xurl) with local sandbox testing through [playground](https://github.com/xdevplatform/playground).
+
+| Skill | What it does |
+|-------|-------------|
+| `/supply-chain-hardening` | Audit and harden your macOS system against supply chain attacks |
+| `/xurl` | Post, search, engage on X/Twitter with spending guardrails and free sandbox mode |
+
+**Install:**
+```bash
+/plugin marketplace add fiale-plus/fiale-claude-plugins
+/plugin install fiale-awesome-skills
+/xurl
+```
+
+→ [Full documentation](plugins/fiale-awesome-skills)
 
 ---
 

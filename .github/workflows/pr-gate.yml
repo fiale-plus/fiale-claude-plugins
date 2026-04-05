@@ -3,6 +3,10 @@ on:
   pull_request_target:
     types: [opened]
 
+permissions:
+  issues: write
+  pull-requests: write
+
 jobs:
   check-membership:
     runs-on: ubuntu-latest
@@ -13,13 +17,32 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const author = context.payload.pull_request.user.login;
+
+            // Check if PR author is the repo owner (covers user-owned repos)
+            if (author === owner) {
+              console.log(`${author} is the repo owner — PR allowed`);
+              return;
+            }
+
+            // Check org membership (for org-owned repos)
             try {
               await github.rest.orgs.checkMembershipForUser({
                 org: owner,
                 username: author,
               });
               console.log(`${author} is an org member — PR allowed`);
-            } catch {
+            } catch (e) {
+              // Check if it's an org API error (user account, not an org) vs actual non-member
+              if (e.status === 404) {
+                // Not an org — check if author is a collaborator instead
+                try {
+                  await github.rest.repos.checkCollaborator({ owner, repo, username: author });
+                  console.log(`${author} is a collaborator — PR allowed`);
+                  return;
+                } catch {}
+              }
+
+              console.log(`${author} is not a member — closing PR`);
               await github.rest.issues.createComment({
                 owner, repo,
                 issue_number: context.payload.pull_request.number,
@@ -30,5 +53,4 @@ jobs:
                 pull_number: context.payload.pull_request.number,
                 state: 'closed',
               });
-              console.log(`${author} is not an org member — PR closed`);
             }
