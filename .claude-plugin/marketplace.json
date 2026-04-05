@@ -115,8 +115,8 @@
     },
     {
       "name": "fiale-awesome-skills",
-      "description": "Curated Claude Code skills for developer security and productivity — supply chain hardening across npm, Python, Go, Rust, and Homebrew (macOS)",
-      "version": "0.1.0",
+      "description": "Curated Claude Code skills — supply chain hardening (macOS) and cost-optimized X/Twitter workflows via xurl CLI with local sandbox testing",
+      "version": "0.2.0",
       "author": {
         "name": "Pavel Fadeev",
         "email": "pavel.fadeev@gmail.com",
@@ -131,7 +131,11 @@
         "hardening",
         "npm",
         "pip",
-        "macos"
+        "macos",
+        "xurl",
+        "twitter",
+        "x-api",
+        "social-media"
       ]
     },
     {
