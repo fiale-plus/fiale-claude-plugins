@@ -83,26 +83,34 @@ They must set the redirect URI to `http://localhost:8080/callback` in the X Deve
 
 When playground is running AND xurl auth is configured, **default to sandbox** for all operations. This costs $0 — playground accepts any valid token without real billing.
 
-xurl auth is required even in sandbox mode. xurl needs credentials to construct requests (attach OAuth headers). The playground accepts these tokens — it just doesn't charge for them.
+xurl auth is required even in sandbox mode — xurl needs credentials to construct requests.
 
 Prefix every xurl command with `API_BASE_URL=http://localhost:3080` to route it to the sandbox. This must be on the same line — a separate `export` will not persist between tool calls.
 
+**App-auth shortcuts work directly** (search, read):
+
 ```bash
-API_BASE_URL=http://localhost:3080 xurl post "Hello from sandbox!"
 API_BASE_URL=http://localhost:3080 xurl search "query" -n 5
-API_BASE_URL=http://localhost:3080 xurl user @handle
-API_BASE_URL=http://localhost:3080 xurl timeline -n 20
-API_BASE_URL=http://localhost:3080 xurl mentions -n 10
 API_BASE_URL=http://localhost:3080 xurl read POST_ID
-API_BASE_URL=http://localhost:3080 xurl reply POST_ID "Nice!"
-API_BASE_URL=http://localhost:3080 xurl like POST_ID
 ```
 
-Raw path access also works:
+**User-context shortcuts** (`whoami`, `post`, `reply`, `like`, `follow`, `dm`, etc.) may fail with a 403 "Unsupported Authentication" error because the playground validates the OAuth token type. For these, use raw path form instead:
 
 ```bash
+# User profile
 API_BASE_URL=http://localhost:3080 xurl /2/users/me
-API_BASE_URL=http://localhost:3080 xurl -X POST /2/tweets -d '{"text":"sandbox post"}'
+
+# Post
+API_BASE_URL=http://localhost:3080 xurl -X POST /2/tweets -d '{"text":"Hello from sandbox!"}'
+
+# Like (requires your user ID — get it from /2/users/me first)
+API_BASE_URL=http://localhost:3080 xurl -X POST /2/users/USER_ID/likes -d '{"tweet_id":"POST_ID"}'
+
+# Timeline
+API_BASE_URL=http://localhost:3080 xurl /2/users/USER_ID/reverse_chronological
+
+# Mentions
+API_BASE_URL=http://localhost:3080 xurl /2/users/USER_ID/mentions
 ```
 
 Prefix all sandbox output with `[SANDBOX]`.
