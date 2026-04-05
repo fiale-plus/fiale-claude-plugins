@@ -73,8 +73,10 @@ playground start -p 3080 &>/dev/null &
 **If xurl auth is not configured**, tell the user to run these themselves (outside this session). Auth is required for both sandbox and live mode — xurl needs credentials to construct requests:
 ```
 xurl auth apps add my-app --client-id <YOUR_ID> --client-secret <YOUR_SECRET>
+xurl auth default my-app
 xurl auth oauth2
 ```
+The `auth default` step is required — OAuth2 flow fails unless the app is set as default first.
 They must set the redirect URI to `http://localhost:8080/callback` in the X Developer Console. Note: playground runs on port 3080 specifically to avoid conflicting with this OAuth callback port.
 
 ## Step 2: Sandbox Mode (playground)
