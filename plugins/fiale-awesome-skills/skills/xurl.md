@@ -26,7 +26,7 @@ Run silently — only surface issues, not successes:
 ```bash
 which xurl 2>/dev/null && echo "xurl: installed" || echo "xurl: NOT FOUND"
 which playground 2>/dev/null && echo "playground: installed" || echo "playground: NOT FOUND"
-playground status 2>&1 || true
+curl -sf http://localhost:3080/health > /dev/null 2>&1 && echo "playground: running on 3080" || echo "playground: not running on 3080"
 echo "API_BASE_URL=${API_BASE_URL:-'(not set)'}"
 xurl auth status 2>&1 || true
 cat /tmp/xurl-session-config.json 2>/dev/null || echo "no session config"
@@ -34,12 +34,13 @@ cat /tmp/xurl-session-config.json 2>/dev/null || echo "no session config"
 
 **Determine mode and act:**
 
-- **Everything configured, session config exists**: skip setup entirely. Show one-line header and proceed with the user's request: `[SANDBOX MODE]` or `[LIVE MODE — limit: $X.XX]`
-- **Playground running, no session config**: "Ready. Sandbox mode active. What would you like to do?"
+- **Everything configured, session config exists**: reset `trusted_actions` to `[]` (trust does not carry across sessions), then show one-line header and proceed: `[SANDBOX MODE]` or `[LIVE MODE — limit: $X.XX]`
+- **Playground running on 3080, no session config**: "Ready. Sandbox mode active. What would you like to do?"
 - **Only xurl auth, no playground**: "No sandbox running. Live mode — real credits will be used."
 - **`API_BASE_URL` set to localhost**: announce "Sandbox mode active via API_BASE_URL."
 - **xurl not installed**: show install options and stop
-- **Auth not configured**: show manual setup instructions and stop
+- **Playground not installed**: offer to install it (see below)
+- **Auth not configured and no playground**: show setup instructions for both
 
 **If xurl is not installed:**
 ```bash
@@ -48,11 +49,20 @@ npm install -g @xdevplatform/xurl            # npm
 go install github.com/xdevplatform/xurl@latest  # Go
 ```
 
-**If playground is not installed** and user wants sandbox:
+**If playground is not installed**, offer to install it (recommended for cost-free testing):
 ```bash
 go install github.com/xdevplatform/playground/cmd/playground@latest
+```
+This requires Go. If Go is not installed, tell the user to install it first (`brew install go` on macOS) or download a pre-built binary from https://github.com/xdevplatform/playground/releases.
+
+After installation, start the sandbox:
+```bash
 playground start -p 3080    # port 3080 to avoid conflict with xurl OAuth callback on 8080
-playground refresh          # update OpenAPI spec cache (optional)
+```
+
+**If playground is installed but not running**, start it:
+```bash
+playground start -p 3080
 ```
 
 **If xurl auth is not configured**, tell the user to run these themselves (outside this session):
@@ -60,7 +70,7 @@ playground refresh          # update OpenAPI spec cache (optional)
 xurl auth apps add my-app --client-id <YOUR_ID> --client-secret <YOUR_SECRET>
 xurl auth oauth2
 ```
-They must set the redirect URI to `http://localhost:8080/callback` in the X Developer Console. Note: playground must run on a different port (e.g., 3080) to avoid conflicting with the OAuth callback port.
+They must set the redirect URI to `http://localhost:8080/callback` in the X Developer Console. Note: playground runs on port 3080 specifically to avoid conflicting with this OAuth callback port.
 
 ## Step 2: Sandbox Mode (playground)
 
@@ -197,7 +207,7 @@ Note: X bills each post in a batch separately — batching does NOT reduce credi
 
 **First write of session**: always individual confirmation, even in batch context.
 
-**Trust mode**: after the first confirmed write of a given type, offer "Skip confirmations for [likes/reposts/etc.] this session?" Store in `/tmp/xurl-session-config.json` under `trusted_actions`. The spending limit guardrail remains active regardless.
+**Trust mode**: after the first confirmed write of a given type, offer "Skip confirmations for [likes/reposts/etc.] this session?" Track in `/tmp/xurl-session-config.json` under `trusted_actions`. Trust is **per-session only** — always reset `trusted_actions` to `[]` at the start of each new session (Step 1). The spending limit guardrail remains active regardless.
 
 **Before batch reads** (search, timeline, mentions with -n > 10), show estimated cost inline — no separate confirmation.
 
@@ -269,8 +279,8 @@ The Developer Console spending limit is your absolute safety net — set it to y
 
 **Playground not running (user expects sandbox):**
 ```
-Sandbox not available — playground is not running.
-  1. Start sandbox: `playground start` (~2s)
+Sandbox not available — playground is not running on port 3080.
+  1. Start sandbox: `playground start -p 3080` (~2s)
   2. Switch to live mode (real credits)
   3. Cancel
 Which? (default: 1)
