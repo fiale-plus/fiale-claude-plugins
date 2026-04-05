@@ -34,7 +34,7 @@ cat /tmp/xurl-session-config.json 2>/dev/null || echo "no session config"
 
 **Determine mode and act:**
 
-- **Everything configured, session config exists**: reset `trusted_actions` to `[]` (trust does not carry across sessions), then show one-line header and proceed: `[SANDBOX MODE]` or `[LIVE MODE — limit: $X.XX]`
+- **Everything configured, session config exists**: reset `trusted_actions` to `[]`, `spent` to `0.0`, and `operations` to `0` (these are per-session — only `spending_limit` carries over). Then show one-line header and proceed: `[SANDBOX MODE]` or `[LIVE MODE — limit: $X.XX]`
 - **Playground running on 3080, no session config**: "Ready. Sandbox mode active. What would you like to do?"
 - **Only xurl auth, no playground**: "No sandbox running. Live mode — real credits will be used."
 - **`API_BASE_URL` set to localhost**: announce "Sandbox mode active via API_BASE_URL."
@@ -76,30 +76,24 @@ They must set the redirect URI to `http://localhost:8080/callback` in the X Deve
 
 When playground is running, **default to sandbox** for all operations. This costs $0.
 
-Set the `API_BASE_URL` env var to redirect all xurl commands to the local playground:
+Prefix every xurl command with `API_BASE_URL=http://localhost:3080` to route it to the sandbox. This must be on the same line — a separate `export` will not persist between tool calls.
 
 ```bash
-export API_BASE_URL=http://localhost:3080
+API_BASE_URL=http://localhost:3080 xurl post "Hello from sandbox!"
+API_BASE_URL=http://localhost:3080 xurl search "query" -n 5
+API_BASE_URL=http://localhost:3080 xurl user @handle
+API_BASE_URL=http://localhost:3080 xurl timeline -n 20
+API_BASE_URL=http://localhost:3080 xurl mentions -n 10
+API_BASE_URL=http://localhost:3080 xurl read POST_ID
+API_BASE_URL=http://localhost:3080 xurl reply POST_ID "Nice!"
+API_BASE_URL=http://localhost:3080 xurl like POST_ID
 ```
 
-Now **all shortcut commands work against sandbox** — same syntax as live mode:
+Raw path access also works:
 
 ```bash
-xurl post "Hello from sandbox!"
-xurl search "query" -n 5
-xurl user @handle
-xurl timeline -n 20
-xurl mentions -n 10
-xurl read POST_ID
-xurl reply POST_ID "Nice!"
-xurl like POST_ID
-```
-
-Raw path access also works (playground accepts any auth token):
-
-```bash
-xurl /2/users/me
-xurl -X POST /2/tweets -d '{"text":"sandbox post"}'
+API_BASE_URL=http://localhost:3080 xurl /2/users/me
+API_BASE_URL=http://localhost:3080 xurl -X POST /2/tweets -d '{"text":"sandbox post"}'
 ```
 
 Prefix all sandbox output with `[SANDBOX]`.
@@ -148,12 +142,7 @@ Web UI for browsing sandbox data: `http://localhost:3080/playground`
 
 ### Switching to live
 
-When the user says "go live", "publish", "send it for real", or similar:
-
-```bash
-unset API_BASE_URL
-echo "Now targeting: ${API_BASE_URL:-https://api.x.com}"
-```
+When the user says "go live", "publish", "send it for real", or similar — simply stop prefixing commands with `API_BASE_URL=http://localhost:3080`. Plain `xurl ...` commands hit the real API.
 
 Show the mode banner: "[LIVE MODE] Switched. Session limit: $X.XX. Every write will show its cost inline."
 
@@ -227,7 +216,7 @@ Store in `/tmp/xurl-session-config.json`:
 {"spending_limit": 0.25, "spent": 0.0, "operations": 0, "trusted_actions": []}
 ```
 
-This file persists across sessions until reboot (`/tmp`). Delete manually to reset.
+This file persists in `/tmp` (survives across sessions until reboot). Only `spending_limit` carries over — `spent`, `operations`, and `trusted_actions` are reset at each session start (Step 1).
 
 Track spending locally using approximate costs:
 
