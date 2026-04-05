@@ -229,7 +229,7 @@ Track spending locally using approximate costs:
 | Operation | Approximate Cost |
 |-----------|-----------------|
 | Post read | $0.005 |
-| Batch read (N posts) | ~$0.005 × N × 0.25 |
+| Batch read (N posts) | ~$0.005 × N (conservative; actual may be lower) |
 | User lookup | $0.010 |
 | Post write | $0.010 |
 | DM read | $0.010 |
@@ -339,7 +339,7 @@ When the user asks for a summary, or at session end:
    xurl --auth app /2/usage/tweets?days=1
    ```
 
-3. Show local tracker data from `/tmp/xurl-session-costs.json`
+3. Show local tracker data from `/tmp/xurl-session-config.json`
 
 Present as:
 
