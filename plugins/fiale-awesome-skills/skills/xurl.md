@@ -35,12 +35,13 @@ cat /tmp/xurl-session-config.json 2>/dev/null || echo "no session config"
 **Determine mode and act:**
 
 - **Everything configured, session config exists**: reset `trusted_actions` to `[]`, `spent` to `0.0`, and `operations` to `0` (these are per-session — only `spending_limit` carries over). Then show one-line header and proceed: `[SANDBOX MODE]` or `[LIVE MODE — limit: $X.XX]`
-- **Playground running on 3080, no session config**: "Ready. Sandbox mode active. What would you like to do?"
-- **Only xurl auth, no playground**: "No sandbox running. Live mode — real credits will be used."
+- **Playground running + auth configured**: "Ready. Sandbox mode active. What would you like to do?"
+- **Auth configured, no playground**: "No sandbox running. Live mode — real credits will be used."
+- **Playground running, no auth**: "Sandbox is running, but xurl auth is required even for sandbox (xurl needs credentials to construct requests — playground accepts any token, so no real billing occurs). Set up auth first."
 - **`API_BASE_URL` set to localhost**: announce "Sandbox mode active via API_BASE_URL."
 - **xurl not installed**: show install options and stop
 - **Playground not installed**: offer to install it (see below)
-- **Auth not configured and no playground**: show setup instructions for both
+- **Neither auth nor playground**: show setup instructions for both (auth first, then playground)
 
 **If xurl is not installed:**
 ```bash
@@ -65,7 +66,7 @@ playground start -p 3080    # port 3080 to avoid conflict with xurl OAuth callba
 playground start -p 3080
 ```
 
-**If xurl auth is not configured**, tell the user to run these themselves (outside this session):
+**If xurl auth is not configured**, tell the user to run these themselves (outside this session). Auth is required for both sandbox and live mode — xurl needs credentials to construct requests:
 ```
 xurl auth apps add my-app --client-id <YOUR_ID> --client-secret <YOUR_SECRET>
 xurl auth oauth2
@@ -74,7 +75,9 @@ They must set the redirect URI to `http://localhost:8080/callback` in the X Deve
 
 ## Step 2: Sandbox Mode (playground)
 
-When playground is running, **default to sandbox** for all operations. This costs $0.
+When playground is running AND xurl auth is configured, **default to sandbox** for all operations. This costs $0 — playground accepts any valid token without real billing.
+
+xurl auth is required even in sandbox mode. xurl needs credentials to construct requests (attach OAuth headers). The playground accepts these tokens — it just doesn't charge for them.
 
 Prefix every xurl command with `API_BASE_URL=http://localhost:3080` to route it to the sandbox. This must be on the same line — a separate `export` will not persist between tool calls.
 
